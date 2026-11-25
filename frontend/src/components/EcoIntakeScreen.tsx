@@ -16,6 +16,7 @@ interface EcoIntakeScreenProps {
   onSubmitEco: (scenarioId: string | null, customEco: CustomEcoInput) => Promise<void>;
   isRunning: boolean;
   errorBanner: string | null;
+  revealCard?: boolean;
 }
 
 interface EquipmentOption {
@@ -104,6 +105,7 @@ export function EcoIntakeScreen({
   onSubmitEco,
   isRunning,
   errorBanner,
+  revealCard = true,
 }: EcoIntakeScreenProps) {
   const [targetEntityId, setTargetEntityId] = useState<string>("P-101");
   const [linkedScenarioId, setLinkedScenarioId] = useState<string | null>(
@@ -198,7 +200,11 @@ export function EcoIntakeScreen({
   };
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
+    <main
+      className={`mx-auto max-w-5xl px-4 py-6 transition-all duration-500 ease-out ${
+        revealCard ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+      }`}
+    >
       <div className="rounded-xl border border-slate-200 bg-white shadow-xs">
         <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-2">

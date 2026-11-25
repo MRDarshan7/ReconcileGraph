@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import {
   createRun,
   fetchAblation,
@@ -9,6 +10,7 @@ import { AblationView } from "./components/AblationView";
 import { EcoIntakeScreen } from "./components/EcoIntakeScreen";
 import { ImpactGraph } from "./components/ImpactGraph";
 import { IntakeBar } from "./components/IntakeBar";
+import { LandingScreen } from "./components/LandingScreen";
 import { ReviewWorkspace } from "./components/ReviewWorkspace";
 import type {
   AblationResponse,
@@ -16,6 +18,14 @@ import type {
   RunState,
   WorkbenchTab,
 } from "./types";
+
+type EntryPhase = "landing" | "morphing" | "entered";
+
+interface MorphState {
+  firstRect: DOMRect;
+  lastRect: DOMRect | null;
+  playing: boolean;
+}
 
 function selectDefaultFinding(run: RunState): { findingId: string | null; docId: string } {
   const firstEscalated =
@@ -30,6 +40,11 @@ function selectDefaultFinding(run: RunState): { findingId: string | null; docId:
 }
 
 export default function App() {
+  const [entryPhase, setEntryPhase] = useState<EntryPhase>("landing");
+  const [morphState, setMorphState] = useState<MorphState | null>(null);
+  const [revealWorkspaceChrome, setRevealWorkspaceChrome] = useState<boolean>(false);
+  const headerBrandRef = useRef<HTMLDivElement | null>(null);
+
   const [runState, setRunState] = useState<RunState | null>(null);
   const [showIntake, setShowIntake] = useState<boolean>(true);
   const [ablation, setAblation] = useState<AblationResponse | null>(null);
@@ -40,6 +55,46 @@ export default function App() {
   const [resolvingConflictId, setResolvingConflictId] = useState<string | null>(null);
   const [isSigningOff, setIsSigningOff] = useState<boolean>(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  const handleEnterFromLanding = useCallback((firstRect: DOMRect) => {
+    setRevealWorkspaceChrome(false);
+    setMorphState({ firstRect, lastRect: null, playing: false });
+    setEntryPhase("morphing");
+  }, []);
+
+  useLayoutEffect(() => {
+    if (entryPhase !== "morphing" || !morphState || morphState.lastRect) {
+      return;
+    }
+    const targetRect = headerBrandRef.current?.getBoundingClientRect();
+    if (!targetRect) {
+      setEntryPhase("entered");
+      setMorphState(null);
+      setRevealWorkspaceChrome(true);
+      return;
+    }
+
+    setMorphState((prev) => (prev ? { ...prev, lastRect: targetRect } : null));
+
+    let raf2 = 0;
+    const raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        setMorphState((prev) => (prev ? { ...prev, playing: true } : null));
+        setRevealWorkspaceChrome(true);
+      });
+    });
+
+    const timer = window.setTimeout(() => {
+      setEntryPhase("entered");
+      setMorphState(null);
+    }, 680);
+
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      window.cancelAnimationFrame(raf2);
+      window.clearTimeout(timer);
+    };
+  }, [entryPhase, morphState]);
 
   const executeRun = useCallback(
     async (
@@ -160,7 +215,21 @@ export default function App() {
     setActiveTab("review");
   };
 
+  if (entryPhase === "landing") {
+    return <LandingScreen onEnter={handleEnterFromLanding} />;
+  }
+
   const isIntakeActive = showIntake || runState === null;
+
+  // Compute FLIP transform from centered landing rect to docked top-left header rect
+  let morphTransform = "translate3d(0px, 0px, 0) scale(1, 1)";
+  if (morphState?.playing && morphState.lastRect) {
+    const dx = morphState.lastRect.left - morphState.firstRect.left;
+    const dy = morphState.lastRect.top - morphState.firstRect.top;
+    const sx = morphState.lastRect.width / morphState.firstRect.width;
+    const sy = morphState.lastRect.height / morphState.firstRect.height;
+    morphTransform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -176,6 +245,9 @@ export default function App() {
         onTabChange={setActiveTab}
         onSignOff={handleSignOff}
         isSigningOff={isSigningOff}
+        brandRef={headerBrandRef}
+        hideBrand={entryPhase === "morphing"}
+        revealChrome={entryPhase === "entered" || revealWorkspaceChrome}
       />
 
       {isIntakeActive ? (
@@ -183,6 +255,7 @@ export default function App() {
           onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
           isRunning={isRunning}
           errorBanner={errorBanner}
+          revealCard={entryPhase === "entered" || revealWorkspaceChrome}
         />
       ) : (
         <>
@@ -213,6 +286,38 @@ export default function App() {
             <AblationView runState={runState} ablation={ablation} />
           )}
         </>
+      )}
+
+      {/* FLIP Shared-Element Morph Overlay */}
+      {entryPhase === "morphing" && morphState && (
+        <div className="pointer-events-none fixed inset-0 z-50">
+          <div
+            className={`absolute inset-0 bg-slate-50 transition-opacity duration-400 ease-out ${
+              morphState.playing ? "opacity-0" : "opacity-100"
+            }`}
+          />
+          <div
+            style={{
+              position: "fixed",
+              left: morphState.firstRect.left,
+              top: morphState.firstRect.top,
+              width: morphState.firstRect.width,
+              height: morphState.firstRect.height,
+              transformOrigin: "top left",
+              transform: morphTransform,
+              transition: "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)",
+              willChange: "transform",
+            }}
+            className="flex items-center gap-4"
+          >
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm sm:h-16 sm:w-16">
+              <ShieldCheck className="h-8 w-8 sm:h-9 sm:w-9" />
+            </div>
+            <h1 className="text-5xl font-bold tracking-tight text-slate-900 select-none sm:text-7xl">
+              ReconcileGraph
+            </h1>
+          </div>
+        </div>
       )}
     </div>
   );

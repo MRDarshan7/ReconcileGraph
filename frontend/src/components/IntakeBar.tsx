@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -22,6 +22,9 @@ interface IntakeBarProps {
   onTabChange: (tab: WorkbenchTab) => void;
   onSignOff: (reviewerName: string, rationale: string) => Promise<void>;
   isSigningOff: boolean;
+  brandRef?: RefObject<HTMLDivElement | null>;
+  hideBrand?: boolean;
+  revealChrome?: boolean;
 }
 
 export function IntakeBar({
@@ -33,6 +36,9 @@ export function IntakeBar({
   onTabChange,
   onSignOff,
   isSigningOff,
+  brandRef,
+  hideBrand = false,
+  revealChrome = true,
 }: IntakeBarProps) {
   const [showSignOffModal, setShowSignOffModal] = useState(false);
   const [reviewerName, setReviewerName] = useState("");
@@ -66,45 +72,63 @@ export function IntakeBar({
         {/* Row 1: Primary Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-base font-bold tracking-tight text-slate-900">
-                  ReconcileGraph
-                </h1>
-                <span className="text-xs font-medium text-slate-500">
-                  Engineering Change Verification
-                </span>
-
-                {runState &&
-                  !isIntakeActive &&
-                  (runState.execution_mode === "LIVE_GEMINI" ||
-                    runState.execution_mode === "LIVE_GROQ") && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                      <Cpu className="h-3.5 w-3.5" />
-                      Live AI • {runState.active_key_slot ?? "Active"}
-                    </span>
-                  )}
-
-                {runState &&
-                  !isIntakeActive &&
-                  runState.execution_mode === "DETERMINISTIC_FALLBACK" && (
-                    <span
-                      title={runState.fallback_notice ?? "Running in offline verification mode"}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Offline Mode
-                    </span>
-                  )}
+            <div
+              ref={brandRef}
+              className={`flex shrink-0 items-center gap-3 ${
+                hideBrand ? "opacity-0" : "opacity-100"
+              }`}
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs">
+                <ShieldCheck className="h-5 w-5" />
               </div>
+              <h1 className="text-base font-bold tracking-tight text-slate-900">
+                ReconcileGraph
+              </h1>
+            </div>
+
+            <div
+              className={`flex flex-wrap items-center gap-2.5 transition-all duration-500 ease-out ${
+                revealChrome
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-2 opacity-0"
+              }`}
+            >
+              <span className="text-xs font-medium text-slate-500">
+                Engineering Change Verification
+              </span>
+
+              {runState &&
+                !isIntakeActive &&
+                (runState.execution_mode === "LIVE_GEMINI" ||
+                  runState.execution_mode === "LIVE_GROQ") && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    <Cpu className="h-3.5 w-3.5" />
+                    Live AI • {runState.active_key_slot ?? "Active"}
+                  </span>
+                )}
+
+              {runState &&
+                !isIntakeActive &&
+                runState.execution_mode === "DETERMINISTIC_FALLBACK" && (
+                  <span
+                    title={runState.fallback_notice ?? "Running in offline verification mode"}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Offline Mode
+                  </span>
+                )}
             </div>
           </div>
 
           {/* Right Actions */}
-          <div className="flex items-center gap-2.5">
+          <div
+            className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${
+              revealChrome
+                ? "translate-y-0 opacity-100"
+                : "translate-y-2 opacity-0"
+            }`}
+          >
             <button
               type="button"
               onClick={onNewChangeRequest}
