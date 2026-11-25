@@ -31,3 +31,16 @@ body {
 .font-mono-code {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
+
+@keyframes indeterminateSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-indeterminate {
+  animation: indeterminateSlide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}

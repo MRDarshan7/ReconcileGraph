@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import {
+  checkBackendHealth,
   createRun,
   fetchAblation,
   resolveConflict,
   signOffRun,
 } from "./api";
 import { AblationView } from "./components/AblationView";
+import { BackendWakeupScreen } from "./components/BackendWakeupScreen";
 import { EcoIntakeScreen } from "./components/EcoIntakeScreen";
 import { ImpactGraph } from "./components/ImpactGraph";
 import { IntakeBar } from "./components/IntakeBar";
@@ -36,6 +38,7 @@ function selectDefaultFinding(run: RunState): { findingId: string | null; docId:
 export default function App() {
   const [entryPhase, setEntryPhase] = useState<EntryPhase>("landing");
   const [revealWorkspaceChrome, setRevealWorkspaceChrome] = useState<boolean>(false);
+  const [backendReady, setBackendReady] = useState<boolean>(false);
 
   const headerBrandRef = useRef<HTMLDivElement | null>(null);
   const floatingBrandRef = useRef<HTMLDivElement | null>(null);
@@ -141,7 +144,33 @@ export default function App() {
     []
   );
 
+  // Background pre-warm loop: wake up Render backend immediately on mount.
   useEffect(() => {
+    let cancelled = false;
+    let pollTimer: number | null = null;
+
+    async function ping() {
+      const ok = await checkBackendHealth(4000);
+      if (cancelled) return;
+      if (ok) {
+        setBackendReady(true);
+        return;
+      }
+      pollTimer = window.setTimeout(ping, 2500);
+    }
+
+    ping();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer !== null) {
+        window.clearTimeout(pollTimer);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!backendReady) return;
     let cancelled = false;
     async function bootstrap() {
       try {
@@ -159,7 +188,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [backendReady]);
 
   const handleResolveConflict = async (
     conflictId: string,
@@ -259,7 +288,11 @@ export default function App() {
             revealChrome={entryPhase === "entered" || revealWorkspaceChrome}
           />
 
-          {isIntakeActive ? (
+          {!backendReady ? (
+            <BackendWakeupScreen
+              revealCard={entryPhase === "entered" || revealWorkspaceChrome}
+            />
+          ) : isIntakeActive ? (
             <EcoIntakeScreen
               onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
               isRunning={isRunning}

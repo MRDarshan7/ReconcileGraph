@@ -70,10 +70,17 @@ async def lifespan(app_instance: FastAPI):
 app = FastAPI(title="ReconcileGraph API", version="0.1.0", lifespan=lifespan)
 app.state.db_path = None
 
+_raw_cors = os.getenv("CORS_ORIGINS", "*").strip()
+_cors_origins = (
+    ["*"]
+    if not _raw_cors or _raw_cors == "*"
+    else [origin.strip() for origin in _raw_cors.split(",") if origin.strip()]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=(_cors_origins != ["*"]),
     allow_methods=["*"],
     allow_headers=["*"],
 )

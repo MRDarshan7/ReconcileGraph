@@ -7,8 +7,10 @@ import type {
   ScenariosResponse,
 } from "./types";
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
@@ -30,6 +32,24 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   }
 
   return (await res.json()) as T;
+}
+
+export async function checkBackendHealth(timeoutMs = 5000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { status?: string };
+    return data.status === "ok";
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 export function fetchHealth(): Promise<HealthResponse> {
