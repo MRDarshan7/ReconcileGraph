@@ -17,6 +17,8 @@ import type {
   RunState,
   SpanRecord,
 } from "../types";
+import { formatDocLabel } from "../utils/docNames";
+import { FormattedRecordViewer } from "./FormattedRecordViewer";
 
 interface ReviewWorkspaceProps {
   runState: RunState;
@@ -136,11 +138,16 @@ export function ReviewWorkspace({
 
   const activeDoc = docMap.get(activeDocId) ?? runState.documents[0] ?? null;
 
+  const activeDocSpan =
+    selectedSpan && activeDoc && selectedSpan.doc_id === activeDoc.id
+      ? selectedSpan
+      : null;
+
   useEffect(() => {
-    if (selectedSpan && selectedSpan.doc_id === activeDocId && highlightRef.current) {
+    if (activeDocSpan && highlightRef.current) {
       highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  }, [selectedSpan, activeDocId]);
+  }, [activeDocSpan]);
 
   const sortedFindings = useMemo(() => {
     const order = { ESCALATED: 0, VERIFIED: 1, REJECTED: 2 };
@@ -173,42 +180,6 @@ export function ReviewWorkspace({
     await onResolveConflict(conflict.id, choice, rationale);
   };
 
-  const renderHighlightedText = (doc: DocumentRecord) => {
-    if (!selectedSpan || selectedSpan.doc_id !== doc.id) {
-      return (
-        <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-          {doc.raw_text}
-        </div>
-      );
-    }
-
-    const { char_start, char_end } = selectedSpan;
-    if (char_start < 0 || char_end > doc.raw_text.length || char_start >= char_end) {
-      return (
-        <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-          {doc.raw_text}
-        </div>
-      );
-    }
-
-    const before = doc.raw_text.slice(0, char_start);
-    const match = doc.raw_text.slice(char_start, char_end);
-    const after = doc.raw_text.slice(char_end);
-
-    return (
-      <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
-        {before}
-        <mark
-          ref={highlightRef}
-          className="rounded bg-amber-200/80 px-1 font-medium text-slate-950 ring-2 ring-amber-400"
-        >
-          {match}
-        </mark>
-        {after}
-      </div>
-    );
-  };
-
   const competingClaimA = selectedConflict
     ? claimMap.get(selectedConflict.claim_a_id) ?? null
     : null;
@@ -229,18 +200,9 @@ export function ReviewWorkspace({
     if (!selectedFinding) return [];
     const isRejected = selectedFinding.audit_status === "REJECTED";
     return [
-      {
-        label: "Equipment tag matched",
-        passed: !isRejected,
-      },
-      {
-        label: "Units normalized",
-        passed: !isRejected,
-      },
-      {
-        label: "Revision currency verified",
-        passed: !isRejected,
-      },
+      { label: "Equipment tag matched", passed: !isRejected },
+      { label: "Units normalized", passed: !isRejected },
+      { label: "Revision currency verified", passed: !isRejected },
       {
         label: isRejected
           ? "Source citation missing (blocked)"
@@ -308,11 +270,11 @@ export function ReviewWorkspace({
                     isRejected ? "text-slate-400 line-through" : "text-slate-900"
                   }`}
                 >
-                  {finding.title}
+                  {formatDocLabel(finding.title)}
                 </div>
 
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-                  {finding.summary}
+                  {formatDocLabel(finding.summary)}
                 </p>
               </button>
             );
@@ -320,24 +282,16 @@ export function ReviewWorkspace({
         </div>
       </section>
 
-      {/* CENTER PANE (40%): Document & Exact Span Viewer */}
+      {/* CENTER PANE (40%): Formatted Engineering Record & Span Viewer */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
-          <div className="mb-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-slate-600" />
-              <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-                Engineering Record &amp; Citation
-              </h2>
-            </div>
-            {selectedSpan && activeDoc && selectedSpan.doc_id === activeDoc.id && (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-mono-code text-[10px] font-semibold text-amber-900">
-                Citation [{selectedSpan.char_start} : {selectedSpan.char_end}]
-              </span>
-            )}
+          <div className="mb-2.5 flex items-center gap-2">
+            <FileText className="h-4 w-4 text-slate-600" />
+            <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
+              Engineering Record
+            </h2>
           </div>
 
-          {/* Wrapped pill bar so all 5 documents fit cleanly */}
           <div className="flex flex-wrap gap-1.5">
             {runState.documents.map((doc) => {
               const isActive = activeDoc?.id === doc.id;
@@ -355,7 +309,7 @@ export function ReviewWorkspace({
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  <span>{DOC_TAB_LABELS[doc.id] ?? doc.id}</span>
+                  <span>{DOC_TAB_LABELS[doc.id] ?? formatDocLabel(doc.id)}</span>
                 </button>
               );
             })}
@@ -364,7 +318,11 @@ export function ReviewWorkspace({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {activeDoc ? (
-            renderHighlightedText(activeDoc)
+            <FormattedRecordViewer
+              rawText={activeDoc.raw_text}
+              activeSpan={activeDocSpan}
+              highlightRef={highlightRef}
+            />
           ) : (
             <p className="text-sm text-slate-500">No document selected.</p>
           )}
@@ -382,11 +340,18 @@ export function ReviewWorkspace({
               >
                 {activeDoc.rev_label} • {activeDoc.status}
               </span>
-              <span className="text-slate-500">{activeDoc.title}</span>
+              <span className="font-medium text-slate-700">
+                {formatDocLabel(activeDoc.id)}
+              </span>
             </div>
-            <span className="font-mono-code text-[10px] text-slate-500">
-              Checksum: {activeDoc.content_hash.slice(0, 16)}…
-            </span>
+            <div className="flex items-center gap-3 font-mono-code text-[10px] text-slate-500">
+              {activeDocSpan && (
+                <span>
+                  Span [{activeDocSpan.char_start} : {activeDocSpan.char_end}]
+                </span>
+              )}
+              <span>Checksum: {activeDoc.content_hash.slice(0, 14)}…</span>
+            </div>
           </div>
         )}
       </section>
@@ -436,8 +401,7 @@ export function ReviewWorkspace({
                       </div>
                       {competingClaimA.span_id && spanMap.get(competingClaimA.span_id) && (
                         <div className="mt-1 text-[11px] text-slate-500">
-                          {DOC_TAB_LABELS[spanMap.get(competingClaimA.span_id)!.doc_id] ??
-                            spanMap.get(competingClaimA.span_id)?.doc_id}
+                          {formatDocLabel(spanMap.get(competingClaimA.span_id)!.doc_id)}
                         </div>
                       )}
                     </div>
@@ -459,8 +423,7 @@ export function ReviewWorkspace({
                       </div>
                       {competingClaimB?.span_id && spanMap.get(competingClaimB.span_id) && (
                         <div className="mt-1 text-[11px] text-amber-800">
-                          {DOC_TAB_LABELS[spanMap.get(competingClaimB.span_id)!.doc_id] ??
-                            spanMap.get(competingClaimB.span_id)?.doc_id}
+                          {formatDocLabel(spanMap.get(competingClaimB.span_id)!.doc_id)}
                         </div>
                       )}
                     </div>
@@ -475,7 +438,9 @@ export function ReviewWorkspace({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs leading-5 text-slate-600">{selectedFinding.summary}</p>
+                  <p className="text-xs leading-5 text-slate-600">
+                    {formatDocLabel(selectedFinding.summary)}
+                  </p>
                 )}
               </div>
 

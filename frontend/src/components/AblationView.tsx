@@ -10,6 +10,7 @@ import {
   ShieldX,
 } from "lucide-react";
 import type { AblationResponse, AuditEvent, RunState } from "../types";
+import { formatDocLabel } from "../utils/docNames";
 
 interface AblationViewProps {
   runState: RunState;
@@ -48,8 +49,9 @@ function formatNarrative(evt: AuditEvent): { summary: string; badge: string; ton
     };
   }
   if (evt.rule_id.startsWith("RULE_BOUNDED_RETRY")) {
+    const docLabel = formatDocLabel(String(detail.doc_id ?? "doc4_maint_log.md"));
     return {
-      summary: `Re-checked maintenance log (attempt ${String(detail.attempt ?? 1)}) for missing '${String(detail.slot ?? "vibration_baseline")}' — confirmed absent.`,
+      summary: `Re-checked ${docLabel} (attempt ${String(detail.attempt ?? 1)}) for missing '${String(detail.slot ?? "vibration_baseline")}' — confirmed absent.`,
       badge: "Re-checked Log",
       tone: "bg-amber-100 text-amber-900",
     };
@@ -171,7 +173,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                 </div>
 
                 <p className="mt-2 text-xs leading-5 text-slate-700">
-                  {narrative.summary}
+                  {formatDocLabel(narrative.summary)}
                 </p>
 
                 <div className="mt-2">
