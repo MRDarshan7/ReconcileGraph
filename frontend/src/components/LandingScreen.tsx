@@ -1,157 +1,146 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowRight,
-  CheckCircle2,
-  Cpu,
-  FileSearch,
-  GitBranch,
-  Lock,
-  Scale,
-  ShieldAlert,
-  ShieldCheck,
-  Terminal,
-} from "lucide-react";
+  AnimatePresence,
+  MotionConfig,
+  motion,
+  useInView,
+  useScroll,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
 
 interface LandingScreenProps {
   onEnter: () => void;
   isExiting?: boolean;
 }
 
-type SimStage = 0 | 1 | 2 | 3;
+type ShowcaseTabId = "workspace" | "logic" | "audit";
+type CalloutKey = "A" | "B" | "C";
 
-interface SimStageInfo {
-  id: SimStage;
-  code: string;
-  label: string;
-  ruleId: string;
-  statusText: string;
-  tone: "cyan" | "amber" | "crimson";
-}
-
-const SIM_STAGES: SimStageInfo[] = [
-  {
-    id: 0,
-    code: "01",
-    label: "Ingest & Anchor",
-    ruleId: "RULE_SPAN_HASH_PROV",
-    statusText: "3 records anchored · SHA-256 [char_start:char_end] verified",
-    tone: "cyan",
-  },
-  {
-    id: 1,
-    code: "02",
-    label: "Reconcile Units",
-    ruleId: "RULE_UNIT_PINT",
-    statusText: "P101 rev. 2 -> P-101 · 175 psi -> 12.07 bar != 10.0 bar spec",
-    tone: "amber",
-  },
-  {
-    id: 2,
-    code: "03",
-    label: "Blast Radius",
-    ruleId: "RULE_BFS_BLAST_RADIUS",
-    statusText: "Proposed 14.0 bar exceeds PRV-04 (11.5 bar) & V-12 (12.0 bar)",
-    tone: "amber",
-  },
-  {
-    id: 3,
-    code: "04",
-    label: "Auditor Gate",
-    ruleId: "RULE_AUDIT_ESCALATE_CONFLICT",
-    statusText: "AUDITOR GATE: ESCALATED · Sign-off locked (HTTP 409)",
-    tone: "crimson",
-  },
-];
-
-interface AgentShowcaseItem {
-  id: string;
-  step: string;
-  name: string;
-  shortName: string;
-  tagline: string;
-  guardrail: string;
-  ruleIds: string[];
+interface CalloutItem {
+  key: CalloutKey;
+  title: string;
   description: string;
-  traceTitle: string;
-  traceLines: Array<{ key: string; value: string; accent?: "cyan" | "amber" | "emerald" | "crimson" }>;
 }
 
-const AGENT_SHOWCASE: AgentShowcaseItem[] = [
+interface ShowcaseTabConfig {
+  id: ShowcaseTabId;
+  label: string;
+  windowTitle: string;
+  windowStatus: string;
+  callouts: CalloutItem[];
+}
+
+const SHOWCASE_TABS: ShowcaseTabConfig[] = [
   {
-    id: "extraction",
-    step: "01",
-    name: "Extraction Agent",
-    shortName: "Extraction",
-    tagline: "Proposes structured assertions; rejects unanchored text.",
-    guardrail: "SHA-256 SpanVerifier",
-    ruleIds: ["RULE_LLM_EXTRACT", "RULE_SPAN_ANCHOR_REJECT"],
-    description:
-      "Reads fragmented BOMs, multi-revision datasheets, field maintenance logs, and compliance records. Every extracted parameter must match a verbatim substring in the stored source record before entering the pipeline.",
-    traceTitle: "PLANT LINE-4 // SPAN ANCHORING TRACE",
-    traceLines: [
-      { key: "source_doc", value: "doc4_maint_log.md (MNT-2026-09)" },
-      { key: "excerpt", value: '"175 psi" -> offset [512 : 519]' },
-      { key: "sha256_hash", value: "9f4b2c8e1d...a730 (MATCH)", accent: "cyan" },
-      { key: "gate_outcome", value: "ANCHORED -> span_8a41c2d09e12", accent: "emerald" },
+    id: "workspace",
+    label: "Evidence Workspace",
+    windowTitle: "ReconcileGraph // Plant Line-4 Review",
+    windowStatus: "ECO-01 · 6 OPEN CONFLICTS",
+    callouts: [
+      {
+        key: "A",
+        title: "Anchor every flagged claim",
+        description:
+          "Agents flag cross-document contradictions and anchor every claim to exact source bytes.",
+      },
+      {
+        key: "B",
+        title: "Inspect Pint unit diffs",
+        description:
+          "Engineers inspect side-by-side unit diffs (175 psi = 12.07 bar vs 10.00 bar) and record a rationale.",
+      },
+      {
+        key: "C",
+        title: "Verify byte-level provenance",
+        description:
+          "View underlying deterministic reconciliation rules and SHA-256 span proofs directly inside the document.",
+      },
     ],
   },
   {
-    id: "reconciliation",
-    step: "02",
-    name: "Reconciliation Agent",
-    shortName: "Reconciliation",
-    tagline: "Normalizes aliases, units, and revision precedence.",
-    guardrail: "AliasResolver + Pint + RevisionComparator",
-    ruleIds: ["RULE_ALIAS_NORM", "RULE_UNIT_PINT", "RULE_REV_PRECEDENCE", "RULE_BOUNDED_RETRY_1"],
-    description:
-      "Resolves field aliases to canonical tags, converts engineering units via Pint, excludes SUPERSEDED revisions, and triggers a bounded 2-attempt re-extraction loop whenever a required safety slot is missing.",
-    traceTitle: "PLANT LINE-4 // UNIT & REVISION TRACE",
-    traceLines: [
-      { key: "alias_norm", value: '"P101 rev. 2" -> canonical P-101 (conf 1.0)', accent: "cyan" },
-      { key: "rev_filter", value: "SPEC-P101-A (8.5 bar) -> SUPERSEDED EXCLUDED" },
-      { key: "pint_convert", value: "175 psi -> 12.07 bar vs 10.0 bar SPEC-P101-B", accent: "amber" },
-      { key: "bounded_retry", value: "vibration_baseline missing after 2 retries -> OPEN", accent: "amber" },
+    id: "logic",
+    label: "Deterministic Logic",
+    windowTitle: "ReconcileGraph // Guardrail Pipeline",
+    windowStatus: "PINNED TOOLS ACTIVE",
+    callouts: [
+      {
+        key: "A",
+        title: "Exclude superseded specs",
+        description:
+          "Structured extraction proposes candidate claims while obsolete Rev A specs are filtered out.",
+      },
+      {
+        key: "B",
+        title: "Normalize tags and units",
+        description:
+          "Deterministic Python tools normalize units, resolve aliases (P101 rev. 2 -> P-101), and retry missing baselines.",
+      },
+      {
+        key: "C",
+        title: "Evaluate downstream boundaries",
+        description:
+          "Trace linked downstream impact across connected plant assets before unlocking approval.",
+      },
     ],
   },
   {
-    id: "impact",
-    step: "03",
-    name: "Impact-Assessment Agent",
-    shortName: "Impact BFS",
-    tagline: "Traces bounded multi-hop physical & compliance blast radius.",
-    guardrail: "Deterministic BFS (max_hops=3)",
-    ruleIds: ["RULE_BFS_BLAST_RADIUS", "RULE_DOWNSTREAM_OVERLOAD"],
-    description:
-      "Traverses directed plant topology edges from the target asset across valves, relief headers, operating procedures, and inspection certificates to expose every downstream limit exceeded by the proposed ECO.",
-    traceTitle: "PLANT LINE-4 // 3-HOP BLAST RADIUS",
-    traceLines: [
-      { key: "target_eco", value: "P-101 -> Centriflo-550 @ 14.0 bar" },
-      { key: "hop_1_assets", value: "V-12 (12.0 bar MAWP) · PRV-04 (11.5 bar set)", accent: "amber" },
-      { key: "hop_1_2_sop", value: "SOP-7 (11.0 bar shutdown interlock)", accent: "amber" },
-      { key: "hop_2_3_cert", value: "INSP-04 (12.0 bar hydro test -> RE-CERTIFY)", accent: "crimson" },
-    ],
-  },
-  {
-    id: "auditor",
-    step: "04",
-    name: "Auditor Agent & Sign-Off Gate",
-    shortName: "Auditor Gate",
-    tagline: "Fail-closed verification; hard-locks approval until resolved.",
-    guardrail: "Span Re-Check + HTTP 409 Sign-Off Lock",
-    ruleIds: ["RULE_AUDIT_REJECT_UNGROUNDED", "RULE_DECISION_RECHECK", "RULE_ECO_SIGNOFF"],
-    description:
-      "Re-verifies every candidate finding's SHA-256 span hash, drops ungrounded claims immediately, and blocks ECO sign-off with HTTP 409 until an engineer resolves every open conflict with a recorded rationale.",
-    traceTitle: "PLANT LINE-4 // FAIL-CLOSED AUDIT GATE",
-    traceLines: [
-      { key: "ungrounded_chk", value: "span_ungrounded_nonexistent -> REJECTED", accent: "crimson" },
-      { key: "open_conflicts", value: "6 OPEN -> POST /sign-off returns HTTP 409", accent: "amber" },
-      { key: "human_decision", value: "decision re-checks impact -> VERIFIED" },
-      { key: "signoff_gate", value: "0 OPEN conflicts -> ECO APPROVED (HTTP 200)", accent: "emerald" },
+    id: "audit",
+    label: "Fail-Closed Audit",
+    windowTitle: "ReconcileGraph // Auditor Gate",
+    windowStatus: "HTTP 409 LOCK ENFORCED",
+    callouts: [
+      {
+        key: "A",
+        title: "Inspect every agent step",
+        description:
+          "Full visibility into every executed agent step, rule ID, and rejected ungrounded finding.",
+      },
+      {
+        key: "B",
+        title: "Enforce human-in-the-loop gate",
+        description:
+          "Human engineers remain strictly in the loop; sign-off stays locked (HTTP 409) until every open conflict is resolved.",
+      },
+      {
+        key: "C",
+        title: "Bind decisions to sign-off",
+        description:
+          "Immutable audit trail links every decision directly to the final ECO approval.",
+      },
     ],
   },
 ];
+
+const BENCHMARK_METRICS = [
+  { label: "Evidence traceability", rag: 0.4, graph: 0.55, ours: 1.0 },
+  { label: "Revision resolution", rag: 0.33, graph: 0.5, ours: 1.0 },
+  { label: "Conflict detection", rag: 0.0, graph: 0.25, ours: 1.0 },
+  { label: "Impact correctness", rag: 0.25, graph: 0.75, ours: 1.0 },
+  { label: "Escalation precision", rag: 0.33, graph: 0.5, ours: 1.0 },
+  { label: "Audit faithfulness", rag: 0.45, graph: 0.6, ours: 1.0 },
+];
+
+const BENCHMARK_SUMMARY = [
+  { name: "Retrieval-Only RAG", score: "0.29", pct: 29, highlight: false },
+  { name: "Static Dependency Graph", score: "0.53", pct: 53, highlight: false },
+  { name: "ReconcileGraph", score: "1.00", pct: 100, highlight: true },
+];
+
+const ARCHITECTURE_FOOTER_STRIP = [
+  { label: "Backend store", value: "FastAPI + SQLite WAL" },
+  { label: "Deterministic core", value: "Pint + SHA-256" },
+  { label: "Resilient routing", value: "Gemini -> Groq -> Offline" },
+  { label: "Approval gate", value: "Fail-Closed HTTP 409" },
+];
+
+const STATEMENT_WORDS =
+  "Operational truth is buried across revisions, units, and safety limits. ReconcileGraph reconciles every claim before an engineer signs off.".split(
+    " "
+  );
+
+const CLOSING_WORDS = "Verify now with ReconcileGraph.".split(" ");
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState<boolean>(() => {
@@ -170,487 +159,877 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-function useRevealOnScroll(reducedMotion: boolean) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [visible, setVisible] = useState<boolean>(reducedMotion);
+function HeroDepthCanvas({ reducedMotion }: { reducedMotion: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    if (reducedMotion) {
-      setVisible(true);
-      return;
-    }
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") {
-      setVisible(true);
-      return;
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setVisible(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.14 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let pointerX = 0.5;
+    let pointerY = 0.5;
+    let rafId = 0;
+
+    const draw = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width === 0 || height === 0) return;
+
+      if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+      }
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      const offsetX = reducedMotion ? 0 : (pointerX - 0.5) * 28;
+      const offsetY = reducedMotion ? 0 : (pointerY - 0.5) * 20;
+
+      // Orthogonal hairline coordinate grid
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+      ctx.lineWidth = 1;
+      const step = 80;
+
+      for (let x = ((offsetX % step) + step) % step; x < width; x += step) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, height);
+        ctx.stroke();
+      }
+
+      for (let y = ((offsetY % step) + step) % step; y < height; y += step) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(width, y + 0.5);
+        ctx.stroke();
+      }
+
+      // Architectural radial perspective depth lines converging toward horizon
+      const vanishX = width * 0.72 + offsetX * 1.4;
+      const vanishY = height * 0.44 + offsetY * 1.4;
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.075)";
+
+      const rays = 10;
+      for (let i = 0; i < rays; i++) {
+        const angle = (i / rays) * Math.PI * 2;
+        const r = Math.max(width, height);
+        ctx.beginPath();
+        ctx.moveTo(vanishX + Math.cos(angle) * 48, vanishY + Math.sin(angle) * 48);
+        ctx.lineTo(vanishX + Math.cos(angle) * r, vanishY + Math.sin(angle) * r);
+        ctx.stroke();
+      }
+
+      // Fine crosshair at convergence origin
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.beginPath();
+      ctx.moveTo(vanishX - 18, vanishY);
+      ctx.lineTo(vanishX + 18, vanishY);
+      ctx.moveTo(vanishX, vanishY - 18);
+      ctx.lineTo(vanishX, vanishY + 18);
+      ctx.stroke();
+
+      // Concentric architectural range rings
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.07)";
+      [120, 240, 380].forEach((radius) => {
+        ctx.beginPath();
+        ctx.arc(vanishX, vanishY, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+    };
+
+    draw();
+
+    const onMove = (e: MouseEvent) => {
+      if (reducedMotion) return;
+      pointerX = e.clientX / Math.max(window.innerWidth, 1);
+      pointerY = e.clientY / Math.max(window.innerHeight, 1);
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(() => {
+          rafId = 0;
+          draw();
+        });
+      }
+    };
+
+    const onResize = () => draw();
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("resize", onResize);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
   }, [reducedMotion]);
 
-  return { ref, visible };
+  return (
+    <canvas
+      ref={canvasRef}
+      aria-hidden="true"
+      className="pointer-events-none h-full w-full"
+    />
+  );
 }
 
-function BrandMark({ size = "sm" }: { size?: "sm" | "md" }) {
-  const dim = size === "sm" ? "h-8 w-8 rounded-lg" : "h-10 w-10 rounded-xl";
+function ScrollWord({
+  word,
+  index,
+  total,
+  progress,
+}: {
+  word: string;
+  index: number;
+  total: number;
+  progress: MotionValue<number>;
+}) {
+  const start = index / total;
+  const end = Math.min(1, start + 1.8 / total);
+  const opacity = useTransform(progress, [start, end], [0, 1]);
+
   return (
-    <div
-      className={`relative flex ${dim} shrink-0 items-center justify-center border border-white/15 bg-[#0E1219] text-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.12)]`}
+    <span className="relative mr-[0.26em] inline-block">
+      <span className="text-[#2A2A2E]">{word}</span>
+      <motion.span
+        style={{ opacity }}
+        aria-hidden="true"
+        className="absolute inset-0 text-white"
+      >
+        {word}
+      </motion.span>
+    </span>
+  );
+}
+
+function CalloutPin({
+  letter,
+  active,
+  onClick,
+  className = "",
+}: {
+  letter: CalloutKey;
+  active: boolean;
+  onClick: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Highlight callout ${letter}`}
+      className={`inline-flex h-6 w-6 items-center justify-center rounded-[2px] border font-mono-code text-xs font-semibold transition-[background-color,color,border-color,transform] duration-150 ease-out ${
+        active
+          ? "border-white bg-white text-black scale-105"
+          : "border-white/40 bg-black text-white hover:border-white"
+      } ${className}`}
     >
-      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.9">
-        <circle cx="6" cy="12" r="2.2" className="fill-sky-400/20" />
-        <circle cx="18" cy="6.5" r="2.2" className="fill-sky-400/20" />
-        <circle cx="18" cy="17.5" r="2.2" className="fill-amber-400/25 stroke-amber-400" />
-        <path d="M8.1 11L15.9 7.4M8.1 13L15.9 16.6" strokeLinecap="round" />
-      </svg>
+      {letter}
+    </button>
+  );
+}
+
+function ProductViewportContent({
+  tab,
+  activeCallout,
+  onSelectCallout,
+}: {
+  tab: ShowcaseTabId;
+  activeCallout: CalloutKey;
+  onSelectCallout: (key: CalloutKey) => void;
+}) {
+  const panelClass = (key: CalloutKey) =>
+    `relative border p-4 transition-[opacity,border-color,background-color] duration-200 ease-out ${
+      activeCallout === key
+        ? "border-white/75 bg-[#111114] opacity-100"
+        : "border-white/10 bg-[#0B0B0D] opacity-40 hover:opacity-75"
+    }`;
+
+  if (tab === "workspace") {
+    return (
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+        {/* Pane A: Findings Queue */}
+        <div
+          onClick={() => onSelectCallout("A")}
+          className={`cursor-pointer lg:col-span-3 ${panelClass("A")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">Findings Queue</span>
+            <CalloutPin letter="A" active={activeCallout === "A"} onClick={() => onSelectCallout("A")} />
+          </div>
+
+          <div className="mt-3 space-y-2">
+            <div className="border-l-2 border-[#D97706] bg-white/[0.04] p-2.5">
+              <div className="flex items-center justify-between font-mono-code text-[11px]">
+                <span className="text-[#D97706]">NEEDS DECISION</span>
+                <span className="text-neutral-400">P-101</span>
+              </div>
+              <div className="mt-1 text-xs font-medium text-white">
+                Active Baseline Conflict: Discharge Pressure
+              </div>
+            </div>
+
+            <div className="border-l-2 border-[#DC2626] bg-white/[0.02] p-2.5">
+              <div className="flex items-center justify-between font-mono-code text-[11px]">
+                <span className="text-[#DC2626]">OVERLOAD</span>
+                <span className="text-neutral-400">PRV-04</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-300">
+                14.0 bar exceeds 11.5 bar set limit
+              </div>
+            </div>
+
+            <div className="border-l-2 border-neutral-500 bg-white/[0.02] p-2.5">
+              <div className="flex items-center justify-between font-mono-code text-[11px]">
+                <span className="text-neutral-400">EXCLUDED</span>
+                <span className="text-neutral-500">REV A</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-400">
+                Superseded spec SPEC-P101-A retired
+              </div>
+            </div>
+
+            <div className="border-l-2 border-[#DC2626] bg-white/[0.02] p-2.5">
+              <div className="flex items-center justify-between font-mono-code text-[11px]">
+                <span className="text-[#DC2626]">BLOCKED</span>
+                <span className="text-neutral-500">AUDIT</span>
+              </div>
+              <div className="mt-1 text-xs text-neutral-500 line-through">
+                Ungrounded candidate claim
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pane C: Document Reader with Byte Highlight */}
+        <div
+          onClick={() => onSelectCallout("C")}
+          className={`cursor-pointer lg:col-span-5 ${panelClass("C")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">
+              MNT-2026-09 · OFFSET [512:519]
+            </span>
+            <CalloutPin letter="C" active={activeCallout === "C"} onClick={() => onSelectCallout("C")} />
+          </div>
+
+          <div className="mt-3 border border-white/10 bg-black p-3.5 font-mono-code text-[12px] leading-relaxed">
+            <div className="text-neutral-500">013 - Observed Asset Tag: P101 rev. 2</div>
+            <div className="text-neutral-500">014 - Service Status: Normal Line-4 load</div>
+            <div className="my-1 bg-white/[0.06] py-1 text-neutral-200">
+              015 - Field Discharge Pressure:{" "}
+              <span className="border border-white bg-white/15 px-1.5 py-0.5 text-white">
+                175 psi
+              </span>
+            </div>
+            <div className="text-neutral-500">016 - Bearing Housing Temp: 62°C</div>
+            <div className="text-neutral-500">021 - Vibration baseline omitted from entry</div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border border-white/10 bg-black px-3 py-2 font-mono-code text-[11px]">
+            <span className="text-neutral-300">SHA-256 VERIFIED</span>
+            <span className="text-neutral-400">9f4b2c8e1d7a...a730</span>
+          </div>
+        </div>
+
+        {/* Pane B: Side-by-Side Diff & Resolve */}
+        <div
+          onClick={() => onSelectCallout("B")}
+          className={`cursor-pointer lg:col-span-4 ${panelClass("B")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">
+              Evidence &amp; Unit Check
+            </span>
+            <CalloutPin letter="B" active={activeCallout === "B"} onClick={() => onSelectCallout("B")} />
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 font-mono-code text-[12px]">
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">SOURCE A · REV B</div>
+              <div className="mt-1.5 text-base text-white">10.00 bar</div>
+              <div className="mt-1 text-[11px] text-neutral-400">SPEC-P101-B</div>
+            </div>
+
+            <div className="border border-[#D97706] bg-black p-3">
+              <div className="text-[11px] text-[#D97706]">SOURCE B · LOG</div>
+              <div className="mt-1.5 text-base text-white">12.07 bar</div>
+              <div className="mt-1 text-[11px] text-neutral-400">raw 175 psi</div>
+            </div>
+          </div>
+
+          <div className="mt-3 border border-white/15 bg-black p-3">
+            <div className="flex items-center justify-between font-mono-code text-[11px]">
+              <span className="text-[#D97706]">DELTA +2.07 bar</span>
+              <span className="text-neutral-400">OPEN CONFLICT</span>
+            </div>
+            <div className="mt-2.5 border border-white/15 bg-[#0B0B0C] px-2.5 py-2 text-xs text-neutral-300">
+              Rationale: Derate pump envelope to 11.0 bar and verify gauge PG-104.
+            </div>
+            <div className="mt-2.5 bg-white px-3 py-1.5 text-center text-xs font-medium text-black">
+              Record Decision &amp; Re-Check Impact
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (tab === "logic") {
+    return (
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+        {/* Stage A: Extraction + Revision Filter */}
+        <div
+          onClick={() => onSelectCallout("A")}
+          className={`cursor-pointer lg:col-span-4 ${panelClass("A")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">
+              Extraction &amp; Revision Filter
+            </span>
+            <CalloutPin letter="A" active={activeCallout === "A"} onClick={() => onSelectCallout("A")} />
+          </div>
+
+          <div className="mt-3 space-y-2.5 font-mono-code text-[12px]">
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">RULE_REV_PRECEDENCE</div>
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-neutral-400">SPEC-P101-A (8.5 bar)</span>
+                <span className="text-[#DC2626]">SUPERSEDED</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-white">SPEC-P101-B (10.0 bar)</span>
+                <span className="text-neutral-200">RELEASED</span>
+              </div>
+            </div>
+
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">RULE_SPAN_HASH_PROV</div>
+              <div className="mt-1 text-neutral-300">14 assertions anchored verbatim</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stage B: Pint + Alias + Bounded Retry */}
+        <div
+          onClick={() => onSelectCallout("B")}
+          className={`cursor-pointer lg:col-span-4 ${panelClass("B")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">
+              Deterministic Guardrails
+            </span>
+            <CalloutPin letter="B" active={activeCallout === "B"} onClick={() => onSelectCallout("B")} />
+          </div>
+
+          <div className="mt-3 space-y-2.5 font-mono-code text-[12px]">
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">RULE_ALIAS_NORM</div>
+              <div className="mt-1 text-white">P101 rev. 2 → P-101 (conf 0.95)</div>
+            </div>
+
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">RULE_UNIT_PINT</div>
+              <div className="mt-1 text-[#D97706]">175 psi → 12.07 bar != 10.00 bar</div>
+            </div>
+
+            <div className="border border-white/15 bg-black p-3">
+              <div className="text-[11px] text-neutral-500">RULE_BOUNDED_RETRY_1..2</div>
+              <div className="mt-1 text-neutral-300">vibration_baseline → MISSING_EVIDENCE</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stage C: Downstream BFS Matrix */}
+        <div
+          onClick={() => onSelectCallout("C")}
+          className={`cursor-pointer lg:col-span-4 ${panelClass("C")}`}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+            <span className="font-mono-code text-[12px] text-neutral-300">
+              Impact BFS (max_hops=3)
+            </span>
+            <CalloutPin letter="C" active={activeCallout === "C"} onClick={() => onSelectCallout("C")} />
+          </div>
+
+          <div className="mt-3 border border-white/15 bg-black font-mono-code text-[12px]">
+            <div className="grid grid-cols-3 border-b border-white/10 px-3 py-2 text-[11px] text-neutral-500">
+              <span>Asset</span>
+              <span>Limit</span>
+              <span className="text-right">Delta</span>
+            </div>
+            {[
+              { id: "V-12", lim: "12.0 bar", delta: "-2.0 bar" },
+              { id: "PRV-04", lim: "11.5 bar", delta: "-2.5 bar" },
+              { id: "SOP-7", lim: "11.0 bar", delta: "-3.0 bar" },
+              { id: "INSP-04", lim: "12.0 bar", delta: "RE-CERTIFY" },
+            ].map((row) => (
+              <div
+                key={row.id}
+                className="grid grid-cols-3 border-b border-white/10 px-3 py-2 last:border-b-0"
+              >
+                <span className="text-white">{row.id}</span>
+                <span className="text-neutral-400">{row.lim}</span>
+                <span className="text-right text-[#DC2626]">{row.delta}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+      {/* Pane A: Chronological Trace */}
+      <div
+        onClick={() => onSelectCallout("A")}
+        className={`cursor-pointer lg:col-span-4 ${panelClass("A")}`}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <span className="font-mono-code text-[12px] text-neutral-300">
+            Execution Trace Log
+          </span>
+          <CalloutPin letter="A" active={activeCallout === "A"} onClick={() => onSelectCallout("A")} />
+        </div>
+
+        <div className="mt-3 space-y-2 font-mono-code text-[11px]">
+          {[
+            { step: "01", agent: "ExtractionAgent", rule: "RULE_LLM_EXTRACT" },
+            { step: "02", agent: "ReconciliationAgent", rule: "RULE_UNIT_CONFLICT" },
+            { step: "03", agent: "ImpactAgent", rule: "RULE_BFS_BLAST_RADIUS" },
+            { step: "04", agent: "AuditorAgent", rule: "RULE_AUDIT_REJECT_UNGROUNDED", bad: true },
+          ].map((item) => (
+            <div key={item.step} className="border border-white/15 bg-black p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-neutral-400">
+                  {item.step} · {item.agent}
+                </span>
+                <span className={item.bad ? "text-[#DC2626]" : "text-neutral-200"}>
+                  {item.bad ? "REJECTED" : "OK"}
+                </span>
+              </div>
+              <div className="mt-1 text-neutral-500">{item.rule}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Pane B: HTTP 409 Sign-Off Gate */}
+      <div
+        onClick={() => onSelectCallout("B")}
+        className={`cursor-pointer lg:col-span-4 ${panelClass("B")}`}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <span className="font-mono-code text-[12px] text-neutral-300">
+            Sign-Off Gate Control
+          </span>
+          <CalloutPin letter="B" active={activeCallout === "B"} onClick={() => onSelectCallout("B")} />
+        </div>
+
+        <div className="mt-3 space-y-3 font-mono-code text-[12px]">
+          <div className="border border-[#DC2626] bg-black p-3.5">
+            <div className="text-[#DC2626]">HTTP 409 CONFLICT</div>
+            <div className="mt-1.5 text-neutral-300">
+              Cannot sign off ECO while 6 OPEN conflict(s) remain.
+            </div>
+          </div>
+
+          <div className="border border-white/25 bg-black p-3.5">
+            <div className="text-neutral-400">AFTER ENGINEER RESOLUTION</div>
+            <div className="mt-1.5 text-white">0 OPEN CONFLICTS · UNLOCKED</div>
+            <div className="mt-3 bg-white px-3 py-1.5 text-center text-xs font-medium text-black">
+              Approve &amp; Sign-Off ECO
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pane C: Immutable Decision Receipt */}
+      <div
+        onClick={() => onSelectCallout("C")}
+        className={`cursor-pointer lg:col-span-4 ${panelClass("C")}`}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <span className="font-mono-code text-[12px] text-neutral-300">
+            Approval Audit Receipt
+          </span>
+          <CalloutPin letter="C" active={activeCallout === "C"} onClick={() => onSelectCallout("C")} />
+        </div>
+
+        <div className="mt-3 border border-white/15 bg-black p-3.5 font-mono-code text-[11px] leading-relaxed">
+          <div className="text-neutral-400">POST /api/runs/run_5ac3/sign-off</div>
+          <div className="mt-2 text-neutral-200">status: 200 OK</div>
+          <div className="text-neutral-200">signed_off: true</div>
+          <div className="text-neutral-400">rule_id: RULE_ECO_SIGNOFF</div>
+          <div className="mt-2 border-t border-white/10 pt-2 text-neutral-300">
+            "A. Sharma: All 6 conflicts resolved and downstream limits mitigated."
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function LiveOntologyVisualizer({ reducedMotion }: { reducedMotion: boolean }) {
-  const [stage, setStage] = useState<SimStage>(1);
-  const [userPaused, setUserPaused] = useState<boolean>(false);
-  const [packetT, setPacketT] = useState<number>(0.45);
+function ChapterOneShowcase({ reducedMotion }: { reducedMotion: boolean }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(containerRef, { amount: 0.25 });
+  const [scanStep, setScanStep] = useState<number>(1);
 
   useEffect(() => {
-    if (reducedMotion || userPaused) return;
-    const interval = window.setInterval(() => {
-      setStage((prev) => ((prev + 1) % 4) as SimStage);
-    }, 2900);
-    return () => window.clearInterval(interval);
-  }, [reducedMotion, userPaused]);
+    if (reducedMotion || !inView) return;
+    const timer = window.setInterval(() => {
+      setScanStep((prev) => (prev + 1) % 4);
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [reducedMotion, inView]);
+
+  const docLines = [
+    { num: "013", text: "- Observed Asset Tag: P101 rev. 2", span: "[458:488]" },
+    { num: "015", text: "- Field Discharge Pressure: 175 psi", span: "[512:519]", highlight: true },
+    { num: "016", text: "- Bearing Housing Temperature: 62°C", span: "[592:596]" },
+    { num: "021", text: "- Vibration baseline omitted from entry", span: "[710:768]" },
+  ];
+
+  const auditRows = [
+    { id: "span_8a41c2d0", excerpt: "175 psi [512:519]", hash: "9f4b2c8e", status: "Verified", rejected: false },
+    { id: "span_3f19b04a", excerpt: "10.0 bar [418:426]", hash: "4c10e771", status: "Verified", rejected: false },
+    { id: "span_71c0e82b", excerpt: "12.0 bar MAWP [310:323]", hash: "b291fa08", status: "Verified", rejected: false },
+    { id: "span_ungrounded", excerpt: "no verbatim source slice", hash: "none", status: "Rejected", rejected: true },
+  ];
+
+  return (
+    <div ref={containerRef} className="border border-white/15 bg-[#0B0B0C]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/12 px-5 py-3 font-mono-code text-xs text-neutral-400">
+        <span>PLANT LINE-4 // SPAN EXTRACTION STREAM</span>
+        <span>doc4_maint_log.md · SHA-256 VERIFIER</span>
+      </div>
+
+      <div className="grid grid-cols-1 divide-y divide-white/12 lg:grid-cols-12 lg:divide-x lg:divide-y-0">
+        {/* Left: Live Scanning Document Viewer */}
+        <div className="p-5 sm:p-7 lg:col-span-6">
+          <div className="mb-3 flex items-center justify-between font-mono-code text-xs text-neutral-400">
+            <span>SOURCE DOCUMENT</span>
+            <span>CURSOR OFFSET {docLines[scanStep].span}</span>
+          </div>
+
+          <div className="space-y-1.5 border border-white/12 bg-black p-4 font-mono-code text-[13px]">
+            {docLines.map((line, idx) => {
+              const isScanned = idx === scanStep;
+              return (
+                <div
+                  key={line.num}
+                  className={`flex items-center justify-between gap-3 px-2.5 py-2 transition-[background-color,border-color] duration-200 ease-out ${
+                    isScanned
+                      ? "border-l-2 border-white bg-white/[0.08] text-white"
+                      : "border-l-2 border-transparent text-neutral-500"
+                  }`}
+                >
+                  <span className="truncate">
+                    <span className="mr-3 text-neutral-600">{line.num}</span>
+                    {line.text}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-neutral-400">{line.span}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border border-white/12 bg-black px-4 py-2.5 font-mono-code text-xs">
+            <span className="text-neutral-400">SHA-256 digest check</span>
+            <span className="text-white">computed == anchored</span>
+          </div>
+        </div>
+
+        {/* Right: Anchored Claim Ledger */}
+        <div className="p-5 sm:p-7 lg:col-span-6">
+          <div className="mb-3 flex items-center justify-between font-mono-code text-xs text-neutral-400">
+            <span>PROVENANCE LEDGER</span>
+            <span>3 VERIFIED · 1 REJECTED</span>
+          </div>
+
+          <div className="border border-white/12 bg-black font-mono-code text-xs">
+            {auditRows.map((row) => (
+              <div
+                key={row.id}
+                className="grid grid-cols-12 items-center gap-2 border-b border-white/10 px-4 py-3 last:border-b-0"
+              >
+                <span className="col-span-4 truncate text-neutral-300">{row.id}</span>
+                <span
+                  className={`col-span-5 truncate ${
+                    row.rejected ? "text-neutral-500 line-through" : "text-neutral-400"
+                  }`}
+                >
+                  {row.excerpt}
+                </span>
+                <span
+                  className={`col-span-3 text-right font-medium ${
+                    row.rejected ? "text-[#DC2626]" : "text-white"
+                  }`}
+                >
+                  {row.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(containerRef, { amount: 0.25 });
+  const [activeHop, setActiveHop] = useState<number>(2);
 
   useEffect(() => {
     if (reducedMotion) {
-      setPacketT(0.5);
+      setActiveHop(2);
       return;
     }
-    let rafId = 0;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = (now - start) / 2200;
-      setPacketT(elapsed % 1);
-      rafId = window.requestAnimationFrame(tick);
-    };
-    rafId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(rafId);
-  }, [reducedMotion]);
+    if (!inView) return;
+    const timer = window.setInterval(() => {
+      setActiveHop((prev) => (prev + 1) % 3);
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [reducedMotion, inView]);
 
-  const activeStage = SIM_STAGES[stage];
-
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-  const docPackets = [
-    { x1: 118, y1: 68, x2: 196, y2: 146, offset: 0.0, color: "#38BDF8" },
-    { x1: 118, y1: 152, x2: 196, y2: 152, offset: 0.33, color: "#F59E0B" },
-    { x1: 118, y1: 236, x2: 196, y2: 158, offset: 0.66, color: "#38BDF8" },
-  ];
-
-  const dsPackets = [
-    { x1: 294, y1: 144, x2: 374, y2: 68, offset: 0.1 },
-    { x1: 294, y1: 152, x2: 374, y2: 152, offset: 0.4 },
-    { x1: 294, y1: 160, x2: 374, y2: 236, offset: 0.7 },
-  ];
-
-  const p101Hot = stage === 1 || stage === 3;
-  const downstreamHot = stage === 2 || stage === 3;
+  const hop1Lit = activeHop >= 1;
+  const hop2Lit = activeHop >= 2;
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0E1219]/95 shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
-      {/* Top Telemetry Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] bg-[#0B0F15] px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_#38BDF8]" />
-          <span className="font-mono-code text-[11px] font-semibold tracking-wider text-slate-300">
-            PLANT LINE-4 // ONTOLOGY TOPOLOGY
-          </span>
-        </div>
-
-        <div
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono-code text-[10px] font-semibold transition-colors duration-300 ${
-            stage === 3
-              ? "border-rose-500/40 bg-rose-500/15 text-rose-300"
-              : stage >= 1
-                ? "border-amber-500/40 bg-amber-500/15 text-amber-300"
-                : "border-sky-500/30 bg-sky-500/10 text-sky-300"
-          }`}
-        >
-          {stage === 3 ? (
-            <>
-              <Lock className="h-3 w-3" />
-              AUDITOR GATE: ESCALATED
-            </>
-          ) : stage === 2 ? (
-            <>
-              <AlertTriangle className="h-3 w-3" />
-              BLAST RADIUS: 4 LIMITS EXCEEDED
-            </>
-          ) : stage === 1 ? (
-            <>
-              <Scale className="h-3 w-3" />
-              CONFLICT: 175 psi → 12.07 bar
-            </>
-          ) : (
-            <>
-              <ShieldCheck className="h-3 w-3" />
-              SPAN VERIFIER: ACTIVE
-            </>
-          )}
-        </div>
+    <div ref={containerRef} className="border border-white/15 bg-[#0B0B0C]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/12 px-5 py-3 font-mono-code text-xs text-neutral-400">
+        <span>PLANT LINE-4 // BOUNDED BFS TRAVERSAL (14.0 BAR PROPOSED ECO)</span>
+        <span>HOP {activeHop} OF 2</span>
       </div>
 
-      {/* Interactive SVG Blueprint Canvas */}
-      <div className="relative bg-[#080B10] px-3 py-3">
-        <div className="rg-dot-grid pointer-events-none absolute inset-0 opacity-45" />
-
+      <div className="p-4 sm:p-8">
         <svg
-          viewBox="0 0 600 308"
-          className="relative z-10 h-auto w-full select-none"
+          viewBox="0 0 920 310"
+          className="h-auto w-full select-none"
           role="img"
-          aria-label="Live Plant Line-4 ontology reconciliation visualizer"
+          aria-label="Animated Plant Line-4 blast radius topology"
         >
-          <defs>
-            <filter id="rg-glow-cyan" x="-40%" y="-40%" width="180%" height="180%">
-              <feGaussianBlur stdDeviation="2.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Column Labels */}
-          <text x="16" y="24" fill="#64748B" fontSize="9" fontFamily="JetBrains Mono, monospace" letterSpacing="1.2">
-            SOURCE RECORDS
-          </text>
-          <text x="205" y="24" fill="#64748B" fontSize="9" fontFamily="JetBrains Mono, monospace" letterSpacing="1.2">
-            TARGET ASSET
-          </text>
-          <text x="382" y="24" fill="#64748B" fontSize="9" fontFamily="JetBrains Mono, monospace" letterSpacing="1.2">
-            DOWNSTREAM BLAST RADIUS
-          </text>
-
-          {/* Incoming Record Edges */}
-          <g stroke="rgba(148,163,184,0.22)" strokeWidth="1.25" fill="none">
-            <path d="M118 68 L196 146" className={stage === 0 ? "rg-edge-flow stroke-sky-400/70" : ""} />
-            <path d="M118 152 L196 152" className={stage <= 1 ? "rg-edge-flow stroke-amber-400/70" : ""} />
-            <path d="M118 236 L196 158" className={stage === 0 ? "rg-edge-flow stroke-sky-400/70" : ""} />
+          {/* Base Edges */}
+          <g stroke="rgba(255,255,255,0.16)" strokeWidth="1.25" fill="none">
+            <path d="M210 155 L340 155 L340 54 L410 54" />
+            <path d="M210 155 L410 155" />
+            <path d="M210 155 L340 155 L340 256 L410 256" />
+            <path d="M620 54 L665 54 L665 155 L700 155" />
+            <path d="M620 155 L700 155" />
+            <path d="M620 256 L665 256 L665 155" />
           </g>
 
-          {/* Downstream Graph Edges */}
-          <g strokeWidth="1.4" fill="none">
-            <path
-              d="M294 144 C332 144, 336 68, 374 68"
-              stroke={downstreamHot ? "rgba(245,158,11,0.75)" : "rgba(56,189,248,0.3)"}
-              className={downstreamHot ? "rg-edge-flow" : ""}
-            />
-            <path
-              d="M294 152 L374 152"
-              stroke={downstreamHot ? "rgba(245,158,11,0.75)" : "rgba(56,189,248,0.3)"}
-              className={downstreamHot ? "rg-edge-flow" : ""}
-            />
-            <path
-              d="M294 160 C332 160, 336 236, 374 236"
-              stroke={downstreamHot ? "rgba(245,158,11,0.75)" : "rgba(56,189,248,0.3)"}
-              className={downstreamHot ? "rg-edge-flow" : ""}
-            />
-            <path
-              d="M466 152 L500 152"
-              stroke={downstreamHot ? "rgba(239,68,68,0.8)" : "rgba(56,189,248,0.3)"}
-              className={downstreamHot ? "rg-edge-flow" : ""}
-            />
+          {/* Animated Wave Edges */}
+          <g
+            stroke={hop1Lit ? "#FFFFFF" : "rgba(255,255,255,0.35)"}
+            strokeWidth="1.5"
+            fill="none"
+            className="rg-trace-line"
+          >
+            <path d="M210 155 L340 155 L340 54 L410 54" />
+            <path d="M210 155 L410 155" />
+            <path d="M210 155 L340 155 L340 256 L410 256" />
+          </g>
+          <g
+            stroke={hop2Lit ? "#DC2626" : "rgba(255,255,255,0.18)"}
+            strokeWidth="1.5"
+            fill="none"
+            className="rg-trace-line"
+          >
+            <path d="M620 155 L700 155" />
           </g>
 
-          {/* Animated Light Packets: Docs -> P-101 */}
-          {docPackets.map((p, idx) => {
-            const t = (packetT + p.offset) % 1;
-            const cx = lerp(p.x1, p.x2, t);
-            const cy = lerp(p.y1, p.y2, t);
-            return (
-              <circle
-                key={`doc-pkt-${idx}`}
-                cx={cx}
-                cy={cy}
-                r={stage === 0 ? 3.2 : 2.3}
-                fill={p.color}
-                opacity={stage === 0 ? 0.95 : 0.45}
-                filter="url(#rg-glow-cyan)"
-              />
-            );
-          })}
+          {/* Relation Labels */}
+          <text x="230" y="144" fill="#737373" fontSize="10" fontFamily="JetBrains Mono, monospace">
+            CONNECTS_TO
+          </text>
+          <text x="230" y="244" fill="#737373" fontSize="10" fontFamily="JetBrains Mono, monospace">
+            GOVERNED_BY
+          </text>
+          <text x="630" y="144" fill="#737373" fontSize="10" fontFamily="JetBrains Mono, monospace">
+            INSP
+          </text>
 
-          {/* Animated Light Packets: P-101 -> Downstream */}
-          {dsPackets.map((p, idx) => {
-            const t = (packetT + p.offset) % 1;
-            const cx = lerp(p.x1, p.x2, t);
-            const cy = lerp(p.y1, p.y2, t);
-            return (
-              <circle
-                key={`ds-pkt-${idx}`}
-                cx={cx}
-                cy={cy}
-                r={downstreamHot ? 3.2 : 2.2}
-                fill={downstreamHot ? "#F59E0B" : "#38BDF8"}
-                opacity={downstreamHot ? 0.95 : 0.4}
-                filter="url(#rg-glow-cyan)"
-              />
-            );
-          })}
-
-          {/* Incoming Document Chips */}
+          {/* Hop 0: P-101 */}
           <g>
-            {/* SPEC-P101-B */}
-            <rect x="14" y="48" width="104" height="40" rx="7" fill="#0E1219" stroke="rgba(56,189,248,0.38)" />
-            <text x="23" y="65" fill="#F8FAFC" fontSize="10" fontWeight="600" fontFamily="JetBrains Mono, monospace">
-              SPEC-P101-B
+            <rect x="20" y="105" width="190" height="100" fill="#000000" stroke="#FFFFFF" strokeWidth="1.25" />
+            <text x="36" y="132" fill="#A3A3A3" fontSize="10.5" fontFamily="JetBrains Mono, monospace">
+              HOP 0 · SOURCE
             </text>
-            <text x="23" y="79" fill="#38BDF8" fontSize="8.5" fontFamily="JetBrains Mono, monospace">
-              REV B · 10.0 bar
-            </text>
-
-            {/* MNT-2026-09 */}
-            <rect
-              x="14"
-              y="132"
-              width="104"
-              height="40"
-              rx="7"
-              fill="#0E1219"
-              stroke={stage >= 1 ? "rgba(245,158,11,0.7)" : "rgba(255,255,255,0.14)"}
-            />
-            <text x="23" y="149" fill="#F8FAFC" fontSize="10" fontWeight="600" fontFamily="JetBrains Mono, monospace">
-              MNT-2026-09
-            </text>
-            <text x="23" y="163" fill="#F59E0B" fontSize="8.5" fontFamily="JetBrains Mono, monospace">
-              P101 rev. 2 · 175 psi
-            </text>
-
-            {/* BOM-L4-001 */}
-            <rect x="14" y="216" width="104" height="40" rx="7" fill="#0E1219" stroke="rgba(255,255,255,0.14)" />
-            <text x="23" y="233" fill="#F8FAFC" fontSize="10" fontWeight="600" fontFamily="JetBrains Mono, monospace">
-              BOM-L4-001
-            </text>
-            <text x="23" y="247" fill="#94A3B8" fontSize="8.5" fontFamily="JetBrains Mono, monospace">
-              RELEASED · 3 tags
-            </text>
-          </g>
-
-          {/* Superseded Pill */}
-          <g opacity="0.72">
-            <rect x="14" y="268" width="148" height="24" rx="5" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.28)" />
-            <text x="22" y="283" fill="#FCA5A5" fontSize="8.5" fontFamily="JetBrains Mono, monospace">
-              SPEC-P101-A · SUPERSEDED
-            </text>
-          </g>
-
-          {/* Target Node: P-101 */}
-          <g>
-            {p101Hot && (
-              <rect
-                x="192"
-                y="112"
-                width="106"
-                height="80"
-                rx="12"
-                fill="none"
-                stroke="#F59E0B"
-                strokeWidth="1.5"
-                className="rg-conflict-pulse"
-              />
-            )}
-            <rect
-              x="196"
-              y="116"
-              width="98"
-              height="72"
-              rx="10"
-              fill="#111722"
-              stroke={p101Hot ? "#F59E0B" : "#38BDF8"}
-              strokeWidth="1.6"
-            />
-            <text x="206" y="136" fill="#F8FAFC" fontSize="12" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+            <text x="36" y="158" fill="#FFFFFF" fontSize="16" fontWeight="500" fontFamily="JetBrains Mono, monospace">
               P-101
             </text>
-            <text x="206" y="150" fill="#94A3B8" fontSize="8.5" fontFamily="Inter, sans-serif">
-              Main Feed Pump
-            </text>
-            <rect
-              x="206"
-              y="160"
-              width="78"
-              height="18"
-              rx="4"
-              fill={p101Hot ? "rgba(245,158,11,0.16)" : "rgba(56,189,248,0.14)"}
-            />
-            <text
-              x="212"
-              y="172"
-              fill={p101Hot ? "#FBBF24" : "#7DD3FC"}
-              fontSize="8.5"
-              fontWeight="600"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {stage >= 1 ? "12.07 vs 10.0" : "ECO: 14.0 bar"}
+            <text x="36" y="184" fill="#D4D4D4" fontSize="12" fontFamily="JetBrains Mono, monospace">
+              ECO 14.0 bar
             </text>
           </g>
 
-          {/* Downstream Nodes */}
-          {/* PRV-04 */}
-          <g>
-            <rect
-              x="374"
-              y="44"
-              width="92"
-              height="48"
-              rx="8"
-              fill="#0E1219"
-              stroke={downstreamHot ? "#F59E0B" : "rgba(255,255,255,0.16)"}
-              strokeWidth={downstreamHot ? "1.5" : "1.1"}
-            />
-            <text x="383" y="63" fill="#F8FAFC" fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
-              PRV-04
-            </text>
-            <text
-              x="383"
-              y="79"
-              fill={downstreamHot ? "#FBBF24" : "#94A3B8"}
-              fontSize="8.5"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {downstreamHot ? "14.0 > 11.5 bar" : "Set: 11.5 bar"}
-            </text>
-          </g>
+          {/* Hop 1 Nodes */}
+          {[
+            { y: 14, id: "V-12", sub: "Isolation Valve", rated: "12.0 bar", margin: "-2.0 bar" },
+            { y: 115, id: "PRV-04", sub: "Relief Valve", rated: "11.5 bar", margin: "-2.5 bar" },
+            { y: 216, id: "SOP-7", sub: "Shutdown Interlock", rated: "11.0 bar", margin: "-3.0 bar" },
+          ].map((node) => (
+            <g key={node.id}>
+              <rect
+                x="410"
+                y={node.y}
+                width="210"
+                height="80"
+                fill="#000000"
+                stroke={hop1Lit ? "#DC2626" : "rgba(255,255,255,0.22)"}
+                strokeWidth="1.25"
+              />
+              <text x="426" y={node.y + 24} fill="#FFFFFF" fontSize="14" fontFamily="JetBrains Mono, monospace">
+                {node.id}
+              </text>
+              <text x="498" y={node.y + 24} fill="#737373" fontSize="10.5" fontFamily="Inter, sans-serif">
+                {node.sub}
+              </text>
+              <text x="426" y={node.y + 52} fill="#A3A3A3" fontSize="11.5" fontFamily="JetBrains Mono, monospace">
+                Rated {node.rated}
+              </text>
+              <text
+                x="534"
+                y={node.y + 52}
+                fill={hop1Lit ? "#DC2626" : "#525252"}
+                fontSize="11.5"
+                fontWeight="600"
+                fontFamily="JetBrains Mono, monospace"
+              >
+                {node.margin}
+              </text>
+            </g>
+          ))}
 
-          {/* SOP-7 */}
+          {/* Hop 2: INSP-04 */}
           <g>
             <rect
-              x="374"
-              y="128"
-              width="92"
-              height="48"
-              rx="8"
-              fill="#0E1219"
-              stroke={downstreamHot ? "#F59E0B" : "rgba(255,255,255,0.16)"}
-              strokeWidth={downstreamHot ? "1.5" : "1.1"}
+              x="700"
+              y="105"
+              width="200"
+              height="100"
+              fill="#000000"
+              stroke={hop2Lit ? "#DC2626" : "rgba(255,255,255,0.22)"}
+              strokeWidth="1.25"
             />
-            <text x="383" y="147" fill="#F8FAFC" fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
-              SOP-7
+            <text x="716" y="132" fill="#A3A3A3" fontSize="10.5" fontFamily="JetBrains Mono, monospace">
+              HOP 2 · COMPLIANCE
             </text>
-            <text
-              x="383"
-              y="163"
-              fill={downstreamHot ? "#FBBF24" : "#94A3B8"}
-              fontSize="8.5"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {downstreamHot ? "14.0 > 11.0 trip" : "Trip: 11.0 bar"}
-            </text>
-          </g>
-
-          {/* V-12 */}
-          <g>
-            <rect
-              x="374"
-              y="212"
-              width="92"
-              height="48"
-              rx="8"
-              fill="#0E1219"
-              stroke={downstreamHot ? "#F59E0B" : "rgba(255,255,255,0.16)"}
-              strokeWidth={downstreamHot ? "1.5" : "1.1"}
-            />
-            <text x="383" y="231" fill="#F8FAFC" fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
-              V-12
-            </text>
-            <text
-              x="383"
-              y="247"
-              fill={downstreamHot ? "#FBBF24" : "#94A3B8"}
-              fontSize="8.5"
-              fontFamily="JetBrains Mono, monospace"
-            >
-              {downstreamHot ? "14.0 > 12.0 MAWP" : "MAWP: 12.0 bar"}
-            </text>
-          </g>
-
-          {/* INSP-04 */}
-          <g>
-            <rect
-              x="500"
-              y="128"
-              width="88"
-              height="48"
-              rx="8"
-              fill="#0E1219"
-              stroke={downstreamHot ? "#EF4444" : "rgba(255,255,255,0.16)"}
-              strokeWidth={downstreamHot ? "1.5" : "1.1"}
-            />
-            <text x="508" y="147" fill="#F8FAFC" fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+            <text x="716" y="158" fill="#FFFFFF" fontSize="15" fontFamily="JetBrains Mono, monospace">
               INSP-04
             </text>
             <text
-              x="508"
-              y="163"
-              fill={downstreamHot ? "#FCA5A5" : "#94A3B8"}
-              fontSize="8.5"
+              x="716"
+              y="184"
+              fill={hop2Lit ? "#DC2626" : "#525252"}
+              fontSize="12"
+              fontWeight="600"
               fontFamily="JetBrains Mono, monospace"
             >
-              {downstreamHot ? "RE-CERTIFY" : "Hydro: 12.0"}
+              12.0 bar · -2.0 bar
             </text>
           </g>
         </svg>
       </div>
+    </div>
+  );
+}
 
-      {/* Interactive Micro-Cycle Stepper & Live Rule Readout */}
-      <div className="border-t border-white/[0.08] bg-[#0B0F15] px-4 py-3">
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          {SIM_STAGES.map((s) => {
-            const active = s.id === stage;
-            return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => {
-                  setUserPaused(true);
-                  setStage(s.id);
-                }}
-                className={`rounded-md border px-2.5 py-1.5 text-left transition ${
-                  active
-                    ? "border-sky-400/40 bg-sky-400/10 text-slate-100"
-                    : "border-white/[0.06] bg-white/[0.02] text-slate-400 hover:border-white/[0.14] hover:text-slate-200"
-                }`}
-              >
-                <div className="font-mono-code text-[9px] font-semibold text-slate-500">
-                  STEP {s.code}
-                </div>
-                <div className="truncate text-[11px] font-semibold">{s.label}</div>
-              </button>
-            );
-          })}
+function ChapterThreeBenchmark() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(ref, { once: true, amount: 0.25 });
+
+  return (
+    <div ref={ref} className="space-y-8">
+      {/* Main Benchmark Card */}
+      <div className="border border-white/15 bg-[#0B0B0C]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/12 px-5 py-3 font-mono-code text-xs text-neutral-400">
+          <span>3-WAY EVALUATION SCORECARD · ECO-01 / ECO-02 / ECO-03</span>
+          <span>1.00 = PASS ALL GUARDRAILS</span>
         </div>
 
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-[#07090D] px-3 py-2 font-mono-code text-[11px]">
-          <span
-            className={
-              activeStage.tone === "crimson"
-                ? "text-rose-300"
-                : activeStage.tone === "amber"
-                  ? "text-amber-300"
-                  : "text-sky-300"
-            }
+        {/* Summary Score Row */}
+        <div className="grid grid-cols-1 divide-y divide-white/12 border-b border-white/12 md:grid-cols-3 md:divide-x md:divide-y-0">
+          {BENCHMARK_SUMMARY.map((sys) => (
+            <div
+              key={sys.name}
+              className={`p-6 ${sys.highlight ? "bg-white/[0.04]" : "bg-black/40"}`}
+            >
+              <div className="text-sm text-neutral-400">{sys.name}</div>
+              <div className="mt-2 font-mono-code text-4xl font-light text-white">
+                {sys.score}
+              </div>
+              <div className="mt-4 h-[2px] w-full bg-white/10">
+                <motion.div
+                  initial={{ width: "0%" }}
+                  animate={{ width: inView ? `${sys.pct}%` : "0%" }}
+                  transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+                  className={sys.highlight ? "h-full bg-white" : "h-full bg-neutral-500"}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 6 Metric Breakdown Table */}
+        <div className="divide-y divide-white/10">
+          {BENCHMARK_METRICS.map((row, idx) => (
+            <div
+              key={row.label}
+              className="grid grid-cols-1 items-center gap-4 px-5 py-4 md:grid-cols-12"
+            >
+              <div className="text-sm text-neutral-300 md:col-span-3">{row.label}</div>
+
+              <div className="grid grid-cols-3 gap-4 font-mono-code text-xs md:col-span-9">
+                {[
+                  { name: "RAG", val: row.rag, isOurs: false },
+                  { name: "Graph", val: row.graph, isOurs: false },
+                  { name: "ReconcileGraph", val: row.ours, isOurs: true },
+                ].map((bar) => (
+                  <div key={bar.name}>
+                    <div className="flex justify-between text-neutral-400">
+                      <span>{bar.name}</span>
+                      <span className={bar.isOurs ? "text-white" : "text-neutral-400"}>
+                        {bar.val.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-[2px] w-full bg-white/10">
+                      <motion.div
+                        initial={{ width: "0%" }}
+                        animate={{ width: inView ? `${Math.round(bar.val * 100)}%` : "0%" }}
+                        transition={{
+                          duration: 0.7,
+                          delay: idx * 0.05,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        className={bar.isOurs ? "h-full bg-white" : "h-full bg-neutral-600"}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 4-Column Architecture Strip */}
+      <div className="grid grid-cols-1 border-t border-b border-white/15 md:grid-cols-4 md:divide-x md:divide-white/15">
+        {ARCHITECTURE_FOOTER_STRIP.map((item) => (
+          <div
+            key={item.label}
+            className="border-b border-white/15 py-6 last:border-b-0 md:border-b-0 md:px-6 md:first:pl-0 md:last:pr-0"
           >
-            {activeStage.statusText}
-          </span>
-          <span className="text-[10px] text-slate-500">{activeStage.ruleId}</span>
-        </div>
+            <div className="text-sm text-neutral-500">{item.label}</div>
+            <div className="mt-2 font-mono-code text-sm text-white">{item.value}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -658,13 +1037,35 @@ function LiveOntologyVisualizer({ reducedMotion }: { reducedMotion: boolean }) {
 
 export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps) {
   const reducedMotion = usePrefersReducedMotion();
-  const [selectedAgentIdx, setSelectedAgentIdx] = useState<number>(0);
-  const [agentCyclePaused, setAgentCyclePaused] = useState<boolean>(false);
-  const triggeredRef = useRef<boolean>(false);
+  const [isScrolled, setIsScrolled] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<ShowcaseTabId>("workspace");
+  const [activeCallout, setActiveCallout] = useState<CalloutKey>("A");
 
-  const section2Reveal = useRevealOnScroll(reducedMotion);
-  const section3Reveal = useRevealOnScroll(reducedMotion);
-  const section4Reveal = useRevealOnScroll(reducedMotion);
+  const triggeredRef = useRef<boolean>(false);
+  const heroRef = useRef<HTMLElement | null>(null);
+  const statementRef = useRef<HTMLElement | null>(null);
+  const closingRef = useRef<HTMLElement | null>(null);
+
+  const { scrollYProgress: heroScroll } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const smoothHeroScroll = useSpring(heroScroll, { stiffness: 120, damping: 24, mass: 0.3 });
+  const heroBgScale = useTransform(smoothHeroScroll, [0, 1], [1, 1.08]);
+  const heroTextY = useTransform(smoothHeroScroll, [0, 1], [0, -64]);
+  const heroTextOpacity = useTransform(smoothHeroScroll, [0, 0.72], [1, 0]);
+
+  const { scrollYProgress: statementScroll } = useScroll({
+    target: statementRef,
+    offset: ["start 0.85", "end 0.42"],
+  });
+  const smoothStatementScroll = useSpring(statementScroll, {
+    stiffness: 110,
+    damping: 26,
+    mass: 0.35,
+  });
+
+  const closingInView = useInView(closingRef, { once: true, amount: 0.3 });
 
   const triggerEnter = useCallback(() => {
     if (triggeredRef.current || isExiting) return;
@@ -672,7 +1073,6 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
     onEnter();
   }, [isExiting, onEnter]);
 
-  // Enter-key launch when focus is not inside an interactive control
   useEffect(() => {
     if (isExiting) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -696,395 +1096,369 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isExiting, triggerEnter]);
 
-  // Auto-cycle interactive 4-agent showcase until user selects a card
   useEffect(() => {
-    if (reducedMotion || agentCyclePaused) return;
-    const timer = window.setInterval(() => {
-      setSelectedAgentIdx((prev) => (prev + 1) % AGENT_SHOWCASE.length);
-    }, 5200);
-    return () => window.clearInterval(timer);
-  }, [reducedMotion, agentCyclePaused]);
+    const onScroll = () => setIsScrolled(window.scrollY > 40);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  const activeAgent = AGENT_SHOWCASE[selectedAgentIdx];
+  const currentTabConfig =
+    SHOWCASE_TABS.find((t) => t.id === activeTab) ?? SHOWCASE_TABS[0];
+
+  const handleSelectTab = (tabId: ShowcaseTabId) => {
+    setActiveTab(tabId);
+    setActiveCallout("A");
+  };
 
   return (
-    <div
-      className={`min-h-screen bg-[#07090D] text-[#F8FAFC] transition-all duration-300 ease-out ${
-        isExiting ? "pointer-events-none scale-[0.99] opacity-0" : "opacity-100"
-      }`}
-    >
-      {/* Ambient Blueprint Grid */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="rg-dot-grid rg-grid-drift absolute inset-0 opacity-[0.22]" />
-        <div
-          className="absolute -top-48 left-1/2 h-[540px] w-[960px] -translate-x-1/2 rounded-full opacity-25 blur-3xl"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(56,189,248,0.22) 0%, rgba(16,185,129,0.06) 45%, transparent 72%)",
-          }}
-        />
-      </div>
-
-      {/* Sticky Minimal Top Nav */}
-      <header className="sticky top-0 z-30 border-b border-white/[0.08] bg-[#07090D]/85 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
-          <div className="flex items-center gap-3">
-            <BrandMark size="sm" />
-            <span className="font-display text-base font-bold tracking-tight text-slate-50">
+    <MotionConfig reducedMotion="user">
+      <div
+        className={`min-h-screen bg-black text-white transition-[opacity] duration-200 ease-out ${
+          isExiting ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+      >
+        {/* 0. Minimal Fixed Navigation Bar (64px) */}
+        <header
+          className={`fixed top-0 right-0 left-0 z-50 h-16 transition-[background-color,border-color] duration-200 ease-out ${
+            isScrolled
+              ? "border-b border-white/12 bg-black/90 backdrop-blur-md"
+              : "border-b border-transparent bg-transparent"
+          }`}
+        >
+          <div className="mx-auto flex h-full max-w-[1380px] items-center justify-between gap-4 px-5 sm:px-10">
+            <a
+              href="#top"
+              className="whitespace-nowrap text-lg font-medium tracking-[-0.02em] text-white"
+            >
               ReconcileGraph
-            </span>
-            <span className="hidden rounded border border-white/[0.1] bg-white/[0.03] px-2 py-0.5 font-mono-code text-[10px] font-medium text-slate-400 sm:inline-block">
-              v2 // LOCAL-FIRST
-            </span>
-          </div>
+            </a>
 
-          <nav className="hidden items-center gap-7 text-xs font-medium text-slate-400 md:flex">
-            <a href="#architecture" className="transition hover:text-slate-100">
-              Architecture
-            </a>
-            <a href="#how-it-works" className="transition hover:text-slate-100">
-              How It Works
-            </a>
-            <a href="#guardrails" className="transition hover:text-slate-100">
-              Guardrails
-            </a>
-          </nav>
+            <nav className="hidden items-center gap-8 text-sm text-neutral-300 md:flex">
+              <a
+                href="#platform"
+                className="whitespace-nowrap transition-colors duration-150 ease-out hover:text-white"
+              >
+                Platform
+              </a>
+              <a
+                href="#capabilities"
+                className="whitespace-nowrap transition-colors duration-150 ease-out hover:text-white"
+              >
+                Capabilities
+              </a>
+              <a
+                href="#benchmarks"
+                className="whitespace-nowrap transition-colors duration-150 ease-out hover:text-white"
+              >
+                Benchmarks
+              </a>
+            </nav>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden font-mono-code text-[11px] text-slate-500 lg:inline-block">
-              Press ↵ to launch
-            </span>
             <button
               type="button"
               onClick={triggerEnter}
-              className="group inline-flex items-center gap-2 rounded-lg border border-sky-400/40 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-950 shadow-sm transition hover:bg-sky-100"
+              className="whitespace-nowrap rounded-none border border-white px-4 py-2 text-sm font-normal text-white transition-[background-color,color] duration-150 ease-out hover:bg-white hover:text-black"
             >
-              <span>Launch Workspace</span>
-              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+              Launch workbench ↗
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="relative z-10">
-        {/* SECTION 1 — Full-Viewport Editorial Hero */}
-        <section className="mx-auto flex min-h-[calc(100vh-64px)] max-w-7xl flex-col justify-center px-5 py-12 sm:px-8 lg:py-16">
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12">
-            {/* Hero Left */}
-            <div className="lg:col-span-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-sky-400/10 px-3 py-1 font-mono-code text-[11px] font-semibold tracking-wider text-sky-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
-                INDUSTRIAL CHANGE VERIFICATION // PROVENANCE-FIRST AI
-              </div>
+        <main id="top">
+          {/* 1. Band 1: Full-Viewport Cinematic Hero */}
+          <section
+            ref={heroRef}
+            className="relative flex min-h-screen flex-col justify-between overflow-hidden bg-black px-5 pt-28 pb-8 sm:px-10"
+          >
+            <motion.div
+              style={reducedMotion ? undefined : { scale: heroBgScale }}
+              className="pointer-events-none absolute inset-0 origin-center"
+            >
+              <HeroDepthCanvas reducedMotion={reducedMotion} />
+            </motion.div>
 
-              <h1 className="font-display mt-5 text-4xl font-bold tracking-tight text-slate-50 sm:text-5xl lg:text-[3.35rem] lg:leading-[1.07]">
-                Verify industrial engineering changes before they fail in the field.
-              </h1>
-
-              <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-[17px]">
-                ReconcileGraph reconciles conflicting specs, superseded revisions, and downstream
-                safety limits across fragmented plant records—anchoring every claim to exact
-                source offsets before unlocking human ECO sign-off.
+            <motion.div
+              style={reducedMotion ? undefined : { y: heroTextY, opacity: heroTextOpacity }}
+              className="relative z-10 mx-auto flex w-full max-w-[1380px] flex-1 flex-col justify-center py-12"
+            >
+              <p className="text-sm font-normal text-neutral-400">
+                ReconcileGraph Platform
               </p>
 
-              <div className="mt-8 flex flex-wrap items-center gap-3.5">
+              <h1 className="mt-5 max-w-[15ch] text-[clamp(3rem,7vw,6.25rem)] font-light leading-[1.02] tracking-[-0.04em] text-white">
+                Integrate AI into industrial change verification.
+              </h1>
+
+              <p className="mt-7 max-w-2xl text-lg font-light leading-relaxed text-neutral-400 md:text-xl">
+                Turn fragmented plant records into reconciled evidence, traced blast radii, and human-approved engineering changes.
+              </p>
+
+              <div className="mt-10">
                 <button
                   type="button"
                   onClick={triggerEnter}
-                  className="group inline-flex items-center gap-2.5 rounded-lg bg-sky-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(56,189,248,0.28)] transition hover:bg-sky-300"
+                  className="rounded-none bg-white px-8 py-4 text-sm font-medium text-black transition-[background-color] duration-150 ease-out hover:bg-neutral-200"
                 >
-                  <span>Enter Verification Workspace</span>
-                  <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                  Launch workbench →
                 </button>
-
-                <a
-                  href="#architecture"
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/[0.14] bg-[#0E1219] px-4 py-3 text-sm font-medium text-slate-200 transition hover:border-white/25 hover:bg-white/[0.06]"
-                >
-                  <span>Explore Architecture</span>
-                  <ArrowDown className="h-4 w-4 text-slate-400" />
-                </a>
               </div>
+            </motion.div>
 
-              {/* Telemetry Strip */}
-              <div className="mt-10 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-white/[0.08] pt-6 sm:grid-cols-4">
-                {[
-                  { label: "4 Specialized Agents", icon: Cpu },
-                  { label: "SHA-256 Span Anchoring", icon: FileSearch },
-                  { label: "Pint Unit Guardrails", icon: Scale },
-                  { label: "Fail-Closed ECO Sign-Off", icon: Lock },
-                ].map(({ label, icon: Icon }) => (
-                  <div key={label} className="flex items-center gap-2 text-xs text-slate-300">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                    <span className="leading-snug font-medium">{label}</span>
-                  </div>
+            <div className="relative z-10 mx-auto flex w-full max-w-[1380px] items-center justify-between gap-4 border-t border-white/12 pt-5 text-sm text-neutral-400">
+              <a
+                href="#statement"
+                className="inline-flex items-center gap-3 transition-colors duration-150 ease-out hover:text-white"
+              >
+                <span className="inline-block h-4 w-[1px] bg-white/40" />
+                <span>Scroll to explore ↓</span>
+              </a>
+              <span className="hidden font-mono-code text-xs text-neutral-500 sm:inline">
+                PLANT LINE-4 · DETERMINISTIC GUARDRAILS
+              </span>
+            </div>
+          </section>
+
+          {/* 2. Band 2: Kinetic Scroll-Reveal Statement */}
+          <section
+            id="statement"
+            ref={statementRef}
+            className="bg-[#0B0B0C] px-5 py-32 text-white sm:px-10 sm:py-44"
+          >
+            <div className="mx-auto max-w-[1380px]">
+              <p className="max-w-[26ch] text-[clamp(2rem,4.8vw,4.25rem)] font-light leading-[1.1] tracking-[-0.03em]">
+                {STATEMENT_WORDS.map((word, idx) => (
+                  <ScrollWord
+                    key={`${word}-${idx}`}
+                    word={word}
+                    index={idx}
+                    total={STATEMENT_WORDS.length}
+                    progress={smoothStatementScroll}
+                  />
                 ))}
-              </div>
-            </div>
-
-            {/* Hero Right: Live Ontology & Reconciliation Visualizer */}
-            <div className="lg:col-span-6">
-              <LiveOntologyVisualizer reducedMotion={reducedMotion} />
-            </div>
-          </div>
-        </section>
-
-        {/* SECTION 2 — Why Retrieval-Only AI Fails */}
-        <section
-          id="architecture"
-          ref={section2Reveal.ref}
-          className={`mx-auto max-w-7xl border-t border-white/[0.08] px-5 py-20 sm:px-8 ${
-            section2Reveal.visible ? "rg-reveal rg-reveal-visible" : "rg-reveal"
-          }`}
-        >
-          <div className="max-w-2xl">
-            <div className="font-mono-code text-[11px] font-semibold tracking-widest text-sky-400 uppercase">
-              01 // WHY RETRIEVAL-ONLY AI FAILS
-            </div>
-            <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-slate-50 sm:text-3xl">
-              Naive RAG retrieves text. Industrial engineering requires reconciliation.
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-400 sm:text-base">
-              Vector similarity alone collapses when equipment tags drift across field logs,
-              obsolete revisions remain indexed, and upstream upgrades violate downstream limits.
-            </p>
-          </div>
-
-          <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
-            {/* Card 1 */}
-            <article className="group rounded-xl border border-white/[0.08] bg-[#0E1219] p-6 transition hover:border-white/[0.18]">
-              <div className="flex items-center justify-between">
-                <span className="font-mono-code text-[11px] font-semibold text-rose-400">
-                  01 / SUPERSEDED REVISIONS
-                </span>
-                <ShieldAlert className="h-4 w-4 text-rose-400" />
-              </div>
-              <h3 className="font-display mt-4 text-base font-bold text-slate-100">
-                Obsolete datasheets pollute answers
-              </h3>
-              <p className="mt-2 text-xs leading-6 text-slate-400">
-                Standard RAG retrieves <code className="font-mono-code text-rose-300">SPEC-P101-A</code>{" "}
-                (<code className="font-mono-code">8.5 bar</code>, <code className="font-mono-code">SUPERSEDED</code>)
-                alongside active <code className="font-mono-code text-emerald-300">Rev B</code> specs (
-                <code className="font-mono-code">10.0 bar</code>).
-              </p>
-              <div className="mt-5 rounded-lg border border-white/[0.06] bg-[#07090D] px-3 py-2 font-mono-code text-[11px] text-slate-300">
-                <span className="text-sky-400">RevisionComparator</span> → excludes Rev A before reasoning
-              </div>
-            </article>
-
-            {/* Card 2 */}
-            <article className="group rounded-xl border border-white/[0.08] bg-[#0E1219] p-6 transition hover:border-white/[0.18]">
-              <div className="flex items-center justify-between">
-                <span className="font-mono-code text-[11px] font-semibold text-amber-400">
-                  02 / SILENT UNIT &amp; VALUE CONFLICTS
-                </span>
-                <Scale className="h-4 w-4 text-amber-400" />
-              </div>
-              <h3 className="font-display mt-4 text-base font-bold text-slate-100">
-                Hidden cross-document contradictions
-              </h3>
-              <p className="mt-2 text-xs leading-6 text-slate-400">
-                Field logs cite <code className="font-mono-code text-amber-300">P101 rev. 2</code> at{" "}
-                <code className="font-mono-code text-amber-300">175 psi</code>—masking a live{" "}
-                <code className="font-mono-code">12.07 bar</code> vs.{" "}
-                <code className="font-mono-code">10.0 bar</code> design discrepancy.
-              </p>
-              <div className="mt-5 rounded-lg border border-white/[0.06] bg-[#07090D] px-3 py-2 font-mono-code text-[11px] text-slate-300">
-                <span className="text-amber-400">Pint Normalizer</span> → 175 psi = 12.07 bar (CONFLICT)
-              </div>
-            </article>
-
-            {/* Card 3 */}
-            <article className="group rounded-xl border border-white/[0.08] bg-[#0E1219] p-6 transition hover:border-white/[0.18]">
-              <div className="flex items-center justify-between">
-                <span className="font-mono-code text-[11px] font-semibold text-sky-400">
-                  03 / UNTRACED DOWNSTREAM OVERLOADS
-                </span>
-                <GitBranch className="h-4 w-4 text-sky-400" />
-              </div>
-              <h3 className="font-display mt-4 text-base font-bold text-slate-100">
-                Multi-hop safety boundaries missed
-              </h3>
-              <p className="mt-2 text-xs leading-6 text-slate-400">
-                Upgrading <code className="font-mono-code">P-101</code> to{" "}
-                <code className="font-mono-code">14.0 bar</code> breaches downstream valve MAWP,
-                relief set points, interlocks, and hydrostatic certification.
-              </p>
-              <div className="mt-5 rounded-lg border border-white/[0.06] bg-[#07090D] px-3 py-2 font-mono-code text-[11px] text-slate-300">
-                <span className="text-sky-400">BFS Traversal</span> → P-101 → V-12 → PRV-04 → SOP-7
-              </div>
-            </article>
-          </div>
-        </section>
-
-        {/* SECTION 3 — Interactive 4-Agent Architecture Showcase */}
-        <section
-          id="how-it-works"
-          ref={section3Reveal.ref}
-          className={`mx-auto max-w-7xl border-t border-white/[0.08] px-5 py-20 sm:px-8 ${
-            section3Reveal.visible ? "rg-reveal rg-reveal-visible" : "rg-reveal"
-          }`}
-        >
-          <div id="guardrails" className="flex flex-wrap items-end justify-between gap-4">
-            <div className="max-w-2xl">
-              <div className="font-mono-code text-[11px] font-semibold tracking-widest text-sky-400 uppercase">
-                02 // ARCHITECTURE &amp; DETERMINISTIC GUARDRAILS
-              </div>
-              <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-slate-50 sm:text-3xl">
-                Agents Propose. Deterministic Tools Verify.
-              </h2>
-              <p className="mt-3 text-sm leading-relaxed text-slate-400 sm:text-base">
-                LLM extraction and synthesis are bounded by deterministic verification tools and a
-                fail-closed audit gate. Select any stage to inspect its guardrail contract.
               </p>
             </div>
+          </section>
 
-            <span className="rounded-md border border-white/[0.08] bg-[#0E1219] px-3 py-1.5 font-mono-code text-[11px] text-slate-400">
-              {agentCyclePaused ? "MANUAL INSPECTION" : "AUTO-CYCLING PIPELINE"}
-            </span>
-          </div>
-
-          {/* 4-Step Interactive Strip */}
-          <div className="mt-9 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {AGENT_SHOWCASE.map((agent, idx) => {
-              const isSelected = idx === selectedAgentIdx;
-              return (
-                <button
-                  key={agent.id}
-                  type="button"
-                  onClick={() => {
-                    setAgentCyclePaused(true);
-                    setSelectedAgentIdx(idx);
-                  }}
-                  className={`rounded-xl border p-4 text-left transition ${
-                    isSelected
-                      ? "border-sky-400/50 bg-[#121926] shadow-[0_0_32px_rgba(56,189,248,0.1)]"
-                      : "border-white/[0.08] bg-[#0E1219] hover:border-white/[0.18]"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`font-mono-code text-[11px] font-bold ${
-                        isSelected ? "text-sky-400" : "text-slate-500"
-                      }`}
-                    >
-                      AGENT {agent.step}
-                    </span>
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        isSelected ? "bg-sky-400" : "bg-slate-700"
-                      }`}
-                    />
-                  </div>
-                  <div className="font-display mt-2 text-sm font-bold text-slate-100">
-                    {agent.name}
-                  </div>
-                  <div className="mt-1 text-xs leading-5 text-slate-400">{agent.tagline}</div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Active Agent Preview Panel */}
-          <div className="mt-5 grid grid-cols-1 gap-6 rounded-2xl border border-white/[0.09] bg-[#0E1219] p-6 lg:grid-cols-12 lg:p-7">
-            <div className="flex flex-col justify-between lg:col-span-6">
-              <div>
-                <div className="inline-flex items-center gap-2 rounded border border-sky-400/25 bg-sky-400/10 px-2.5 py-1 font-mono-code text-[11px] font-semibold text-sky-300">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  GUARDRAIL: {activeAgent.guardrail}
+          {/* 3. Band 3: Palantir AIP Signature Interactive A / B / C Showcase */}
+          <section id="platform" className="bg-white px-5 py-28 text-black sm:px-10">
+            <div className="mx-auto max-w-[1380px]">
+              {/* Top Mode Switcher */}
+              <div className="flex flex-wrap items-end justify-between gap-6 border-b border-black/10">
+                <div className="flex flex-wrap items-center gap-8" role="tablist">
+                  {SHOWCASE_TABS.map((tab) => {
+                    const active = tab.id === activeTab;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={active}
+                        onClick={() => handleSelectTab(tab.id)}
+                        className={`relative pb-4 text-sm font-medium transition-colors duration-150 ease-out sm:text-base ${
+                          active ? "text-black" : "text-neutral-500 hover:text-black"
+                        }`}
+                      >
+                        {tab.label}
+                        {active && (
+                          <motion.span
+                            layoutId="rg-showcase-tab-underline"
+                            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            className="absolute right-0 bottom-0 left-0 h-[2px] bg-black"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                <h3 className="font-display mt-4 text-xl font-bold text-slate-50">
-                  {activeAgent.step} // {activeAgent.name}
-                </h3>
-
-                <p className="mt-2.5 text-sm leading-relaxed text-slate-300">
-                  {activeAgent.description}
-                </p>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                {activeAgent.ruleIds.map((rule) => (
-                  <span
-                    key={rule}
-                    className="rounded border border-white/[0.08] bg-[#07090D] px-2.5 py-1 font-mono-code text-[11px] text-slate-300"
-                  >
-                    {rule}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-white/[0.08] bg-[#07090D] p-5 lg:col-span-6">
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-                <span className="inline-flex items-center gap-2 font-mono-code text-[11px] font-semibold text-slate-300">
-                  <Terminal className="h-3.5 w-3.5 text-sky-400" />
-                  {activeAgent.traceTitle}
+                <span className="pb-4 font-mono-code text-xs text-neutral-500">
+                  SELECT A / B / C TO INSPECT REGION
                 </span>
-                <span className="font-mono-code text-[10px] text-emerald-400">VERIFIED TRACE</span>
               </div>
 
-              <div className="mt-4 space-y-2.5 font-mono-code text-xs">
-                {activeAgent.traceLines.map((line) => {
-                  const accentClass =
-                    line.accent === "cyan"
-                      ? "text-sky-300"
-                      : line.accent === "amber"
-                        ? "text-amber-300"
-                        : line.accent === "emerald"
-                          ? "text-emerald-300"
-                          : line.accent === "crimson"
-                            ? "text-rose-300"
-                            : "text-slate-200";
-                  return (
-                    <div
-                      key={line.key}
-                      className="flex flex-col gap-0.5 rounded-md border border-white/[0.05] bg-white/[0.02] px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              {/* Large Full-Width Product Viewport */}
+              <div className="mt-8 min-h-[460px] rounded-[2px] border border-black/15 bg-[#09090B] text-white">
+                {/* Application Window Chrome */}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/12 bg-black px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono-code text-xs text-neutral-300">
+                      {currentTabConfig.windowTitle}
+                    </span>
+                  </div>
+                  <span className="font-mono-code text-xs text-neutral-400">
+                    {currentTabConfig.windowStatus}
+                  </span>
+                </div>
+
+                <div className="p-4 sm:p-6">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={activeTab}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                     >
-                      <span className="text-[11px] text-slate-500">{line.key}</span>
-                      <span className={`text-[11px] font-medium ${accentClass}`}>
-                        {line.value}
-                      </span>
-                    </div>
+                      <ProductViewportContent
+                        tab={activeTab}
+                        activeCallout={activeCallout}
+                        onSelectCallout={setActiveCallout}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Bottom 3-Column A / B / C Selector Strip */}
+              <div className="mt-6 grid grid-cols-1 border-t border-b border-black/10 md:grid-cols-3 md:divide-x md:divide-black/10">
+                {currentTabConfig.callouts.map((callout) => {
+                  const active = callout.key === activeCallout;
+                  return (
+                    <button
+                      key={callout.key}
+                      type="button"
+                      onClick={() => setActiveCallout(callout.key)}
+                      className={`relative border-b border-black/10 p-6 text-left transition-[background-color,opacity] duration-150 ease-out last:border-b-0 md:border-b-0 ${
+                        active ? "bg-[#F5F5F7] opacity-100" : "bg-white opacity-65 hover:opacity-100"
+                      }`}
+                    >
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-0 right-0 left-0 h-[2px] bg-black"
+                        />
+                      )}
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-[2px] font-mono-code text-xs font-semibold ${
+                            active
+                              ? "bg-black text-white"
+                              : "border border-black/20 text-neutral-700"
+                          }`}
+                        >
+                          {callout.key}
+                        </span>
+                        <span className="text-base font-medium text-black">{callout.title}</span>
+                      </div>
+                      <p className="mt-3 text-sm leading-relaxed text-neutral-600">
+                        {callout.description}
+                      </p>
+                    </button>
                   );
                 })}
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* SECTION 4 — Compact Final CTA Footer */}
-        <section
-          ref={section4Reveal.ref}
-          className={`mx-auto max-w-7xl border-t border-white/[0.08] px-5 py-16 sm:px-8 ${
-            section4Reveal.visible ? "rg-reveal rg-reveal-visible" : "rg-reveal"
-          }`}
-        >
-          <div className="flex flex-col items-start justify-between gap-6 rounded-2xl border border-white/[0.09] bg-[#0E1219] px-6 py-8 sm:flex-row sm:items-center sm:px-8">
-            <div>
-              <div className="font-mono-code text-[11px] font-semibold tracking-wider text-sky-400 uppercase">
-                ECO REVIEW WORKBENCH
+          {/* 4. Band 4: Numbered 0.1 / 0.2 / 0.3 Full-Bleed Capability Chapters */}
+          <section id="capabilities" className="bg-black px-5 py-32 text-white sm:px-10">
+            <div className="mx-auto max-w-[1380px] space-y-32">
+              {/* Chapter 0.1 */}
+              <div className="border-t border-white/15 pt-12">
+                <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+                  <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
+                    0.1
+                  </div>
+                  <div className="lg:col-span-9">
+                    <h2 className="text-[clamp(2rem,4vw,3.5rem)] font-light leading-[1.06] tracking-[-0.035em] text-white">
+                      Anchor every claim to verifiable source bytes.
+                    </h2>
+                    <p className="mt-4 max-w-2xl text-base leading-relaxed text-neutral-400">
+                      Every extracted parameter is sliced against the stored document text and verified by SHA-256 hash. Unanchored claims are rejected before entering reconciliation.
+                    </p>
+                  </div>
+                </div>
+
+                <ChapterOneShowcase reducedMotion={reducedMotion} />
               </div>
-              <h2 className="font-display mt-1.5 text-2xl font-bold tracking-tight text-slate-50">
-                Ready to inspect Plant Line-4?
-              </h2>
-              <p className="mt-2 font-mono-code text-xs text-slate-400">
-                FastAPI + SQLite WAL · React 19 · Local-First &amp; Offline-Capable
-              </p>
-            </div>
 
-            <button
-              type="button"
-              onClick={triggerEnter}
-              className="group inline-flex shrink-0 items-center gap-2.5 rounded-lg bg-sky-400 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_0_30px_rgba(56,189,248,0.24)] transition hover:bg-sky-300"
-            >
-              <span>Launch Workspace</span>
-              <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-            </button>
-          </div>
-        </section>
-      </main>
-    </div>
+              {/* Chapter 0.2 */}
+              <div className="border-t border-white/15 pt-12">
+                <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+                  <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
+                    0.2
+                  </div>
+                  <div className="lg:col-span-9">
+                    <h2 className="text-[clamp(2rem,4vw,3.5rem)] font-light leading-[1.06] tracking-[-0.035em] text-white">
+                      Trace physical and compliance ripple effects before approval.
+                    </h2>
+                    <p className="mt-4 max-w-2xl text-base leading-relaxed text-neutral-400">
+                      Bounded multi-hop graph traversal propagates proposed operating conditions across downstream valves, relief headers, interlock procedures, and inspection certificates.
+                    </p>
+                  </div>
+                </div>
+
+                <ChapterTwoTopology reducedMotion={reducedMotion} />
+              </div>
+
+              {/* Chapter 0.3 */}
+              <div id="benchmarks" className="border-t border-white/15 pt-12">
+                <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
+                  <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
+                    0.3
+                  </div>
+                  <div className="lg:col-span-9">
+                    <h2 className="text-[clamp(2rem,4vw,3.5rem)] font-light leading-[1.06] tracking-[-0.035em] text-white">
+                      Outperform retrieval-only RAG and static graphs on industrial audits.
+                    </h2>
+                    <p className="mt-4 max-w-2xl text-base leading-relaxed text-neutral-400">
+                      Evaluated deterministically across Plant Line-4 reference scenarios covering superseded datasheets, cross-document unit drift, missing baselines, and blast-radius limits.
+                    </p>
+                  </div>
+                </div>
+
+                <ChapterThreeBenchmark />
+              </div>
+            </div>
+          </section>
+
+          {/* 5. Band 5: Monumental Kinetic Closing Band */}
+          <section ref={closingRef} className="bg-white px-5 pt-36 pb-12 text-black sm:px-10 sm:pt-44">
+            <div className="mx-auto max-w-[1380px]">
+              <h2 className="max-w-[14ch] text-[clamp(3.25rem,8vw,7.5rem)] font-light leading-[0.96] tracking-[-0.045em] text-black">
+                {CLOSING_WORDS.map((word, idx) => (
+                  <motion.span
+                    key={`${word}-${idx}`}
+                    initial={reducedMotion ? false : { opacity: 0.15, y: 18 }}
+                    animate={
+                      closingInView || reducedMotion
+                        ? { opacity: 1, y: 0 }
+                        : { opacity: 0.15, y: 18 }
+                    }
+                    transition={{
+                      duration: 0.5,
+                      delay: idx * 0.08,
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    className="mr-[0.24em] inline-block"
+                  >
+                    {word}
+                  </motion.span>
+                ))}
+              </h2>
+
+              <div className="mt-12 flex flex-wrap items-center gap-6">
+                <button
+                  type="button"
+                  onClick={triggerEnter}
+                  className="rounded-none bg-black px-9 py-4 text-sm font-medium text-white transition-[background-color] duration-150 ease-out hover:bg-neutral-800"
+                >
+                  Enter verification workbench →
+                </button>
+                <span className="font-mono-code text-sm text-neutral-500">
+                  Press Enter to launch
+                </span>
+              </div>
+
+              <footer className="mt-28 flex flex-wrap items-center justify-between gap-4 border-t border-black/10 pt-6 text-sm text-neutral-500">
+                <span className="font-medium text-black">ReconcileGraph</span>
+                <span>Local-first industrial change verification</span>
+              </footer>
+            </div>
+          </section>
+        </main>
+      </div>
+    </MotionConfig>
   );
 }
