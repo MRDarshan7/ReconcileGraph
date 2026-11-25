@@ -1,0 +1,122 @@
+{
+  "scenarios": [
+    {
+      "id": "eco_01_pump_upgrade",
+      "title": "ECO-01: High-Capacity Pump P-101 Upgrade",
+      "target_entity": "P-101",
+      "change_request": "Replace Pump P-101 with High-Capacity Model Centriflo-550 (Proposed Discharge Pressure: 14.0 bar, Flow: 145 m3/h)",
+      "proposed_changes": {
+        "model": "Centriflo-550",
+        "discharge_pressure_bar": 14.0,
+        "flow_m3_h": 145
+      },
+      "expected_outcomes": {
+        "superseded_docs_caught": [
+          {
+            "doc_id": "SPEC-P101-A",
+            "file": "doc2_pump_spec_revA.md",
+            "reason": "Revision A (8.5 bar, Viton-A) is SUPERSEDED by Revision B (10.0 bar, PTFE-Graphite)"
+          }
+        ],
+        "active_conflicts": [
+          {
+            "entity": "P-101",
+            "attribute": "discharge_pressure",
+            "spec_claim": "10.0 bar (SPEC-P101-B / BOM-L4-001)",
+            "field_claim": "175 psi (12.07 bar) in Maintenance Log MNT-2026-09 via alias 'P101 rev. 2'",
+            "severity": "HIGH",
+            "status": "UNRESOLVED_CONFLICT"
+          }
+        ],
+        "missing_evidence_retries": [
+          {
+            "slot": "vibration_baseline",
+            "expected_retries": 1,
+            "doc_id": "MNT-2026-09",
+            "outcome": "MISSING_CONFIRMED"
+          }
+        ],
+        "blast_radius": [
+          {
+            "entity": "V-12",
+            "impact": "OVERLOAD",
+            "detail": "Proposed 14.0 bar exceeds V-12 MAWP of 12.0 bar"
+          },
+          {
+            "entity": "PRV-04",
+            "impact": "OVERLOAD",
+            "detail": "Proposed 14.0 bar exceeds PRV-04 set pressure of 11.5 bar"
+          },
+          {
+            "entity": "SOP-7",
+            "impact": "INTERLOCK_VIOLATION",
+            "detail": "Proposed 14.0 bar exceeds SOP-7 high-pressure shutdown interlock of 11.0 bar"
+          },
+          {
+            "entity": "INSP-04",
+            "impact": "RECERTIFICATION_REQUIRED",
+            "detail": "Proposed 14.0 bar exceeds 12.0 bar hydrostatic test; requires re-certification"
+          }
+        ]
+      }
+    },
+    {
+      "id": "eco_02_seal_swap",
+      "title": "ECO-02: Pump P-101 Mechanical Seal Upgrade",
+      "target_entity": "P-101",
+      "change_request": "Replace Pump P-101 mechanical seal with Kalrez-4079 (same 10.0 bar pressure)",
+      "proposed_changes": {
+        "seal_material": "Kalrez-4079",
+        "discharge_pressure_bar": 10.0
+      },
+      "expected_outcomes": {
+        "superseded_docs_caught": [
+          {
+            "doc_id": "SPEC-P101-A",
+            "file": "doc2_pump_spec_revA.md",
+            "reason": "Revision A (Viton-A seal, 8.5 bar) is SUPERSEDED by Revision B (PTFE-Graphite seal, 10.0 bar)"
+          }
+        ],
+        "active_conflicts": [
+          {
+            "entity": "P-101",
+            "attribute": "discharge_pressure",
+            "spec_claim": "10.0 bar (SPEC-P101-B / BOM-L4-001)",
+            "field_claim": "175 psi (12.07 bar) in Maintenance Log MNT-2026-09 via alias 'P101 rev. 2'",
+            "severity": "HIGH",
+            "status": "UNRESOLVED_CONFLICT"
+          }
+        ],
+        "missing_evidence_retries": [],
+        "blast_radius": []
+      }
+    },
+    {
+      "id": "eco_03_valve_upgrade",
+      "title": "ECO-03: Valve V-12 Class 300 Upgrade",
+      "target_entity": "V-12",
+      "change_request": "Upgrade Valve V-12 to Class 300 (Max Pressure: 25.0 bar)",
+      "proposed_changes": {
+        "body_class": "ANSI Class 300",
+        "mawp_bar": 25.0
+      },
+      "expected_outcomes": {
+        "superseded_docs_caught": [],
+        "active_conflicts": [],
+        "missing_evidence_retries": [],
+        "blast_radius": [
+          {
+            "entity": "P-101",
+            "impact": "COMPATIBLE",
+            "detail": "25.0 bar MAWP cleanly accommodates P-101 (10.0 bar spec / 12.07 bar logged)"
+          },
+          {
+            "entity": "SOP-7",
+            "impact": "DOC_REFERENCE_UPDATE",
+            "detail": "Update V-12 rating reference in SOP-7; existing 11.0 bar shutdown interlock remains valid"
+          }
+        ]
+      }
+    }
+  ]
+}

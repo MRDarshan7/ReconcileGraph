@@ -1,0 +1,115 @@
+{
+  "entities": [
+    {
+      "id": "P-101",
+      "type": "pump",
+      "name": "Main Feed Pump P-101",
+      "aliases": [
+        "P-101",
+        "P-101 Rev B",
+        "P101 rev. 2",
+        "P101 rev 2"
+      ],
+      "attributes": {
+        "line": "Plant Line-4",
+        "current_model": "Centriflo-400",
+        "flange_rating": "ANSI Class 150",
+        "rated_discharge_pressure_bar": 10.0,
+        "max_design_flow_m3_h": 120,
+        "seal_material": "PTFE-Graphite"
+      }
+    },
+    {
+      "id": "V-12",
+      "type": "valve",
+      "name": "Isolation Check Valve V-12",
+      "aliases": [
+        "V-12",
+        "Valve V-12",
+        "Velan-CV2"
+      ],
+      "attributes": {
+        "line": "Plant Line-4",
+        "model": "Velan-CV2",
+        "mawp_bar": 12.0
+      }
+    },
+    {
+      "id": "PRV-04",
+      "type": "relief_valve",
+      "name": "Pressure Relief Valve PRV-04",
+      "aliases": [
+        "PRV-04"
+      ],
+      "attributes": {
+        "line": "Plant Line-4",
+        "set_pressure_bar": 11.5,
+        "protects": "Line-4 header"
+      }
+    },
+    {
+      "id": "SOP-7",
+      "type": "sop",
+      "name": "Standard Operating Procedure SOP-7",
+      "aliases": [
+        "SOP-7"
+      ],
+      "attributes": {
+        "line": "Plant Line-4",
+        "shutdown_interlock_bar": 11.0
+      }
+    },
+    {
+      "id": "INSP-04",
+      "type": "inspection_certificate",
+      "name": "Inspection Certificate INSP-04",
+      "aliases": [
+        "INSP-04"
+      ],
+      "attributes": {
+        "line": "Plant Line-4",
+        "hydrostatic_test_bar": 12.0,
+        "status": "PASSED",
+        "valid_until": "2027-09-01"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "P-101",
+      "relation": "CONNECTS_TO",
+      "target": "V-12",
+      "description": "V-12 is connected immediately downstream of P-101"
+    },
+    {
+      "source": "P-101",
+      "relation": "CONNECTS_TO",
+      "target": "PRV-04",
+      "description": "PRV-04 protects the Line-4 header fed by P-101"
+    },
+    {
+      "source": "V-12",
+      "relation": "GOVERNED_BY",
+      "target": "SOP-7",
+      "description": "V-12 operation and interlocks are governed by SOP-7"
+    },
+    {
+      "source": "P-101",
+      "relation": "GOVERNED_BY",
+      "target": "SOP-7",
+      "description": "P-101 operation and high-pressure trip are governed by SOP-7"
+    },
+    {
+      "source": "SOP-7",
+      "relation": "INSPECTED_IN",
+      "target": "INSP-04",
+      "description": "SOP-7 compliance envelope is verified by annual hydrostatic test INSP-04"
+    }
+  ],
+  "authority_ranking": {
+    "spec": 1,
+    "bom": 2,
+    "sop_inspection": 3,
+    "maintenance_log": 4
+  }
+}
