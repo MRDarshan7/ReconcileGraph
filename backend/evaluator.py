@@ -2,26 +2,44 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
 
-from backend.db import get_downstream_subgraph, seed_corpus
+from backend.db import get_connection, get_downstream_subgraph, init_db, seed_corpus
 from backend.tools import AliasResolver, RevisionComparator, SpanVerifier, UnitNormalizer
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
+_CACHE_LOCK = threading.Lock()
+_ABLATION_CACHE: dict[str, Any] | None = None
 
-def run_ablation_benchmark(conn: sqlite3.Connection) -> dict[str, Any]:
-    """Evaluate 3 architecture configurations across 6 engineering verification metrics."""
+
+def run_ablation_benchmark(_conn: sqlite3.Connection | None = None) -> dict[str, Any]:
+    """Evaluate 3 architecture configurations in an isolated in-memory SQLite DB."""
+    global _ABLATION_CACHE
+    with _CACHE_LOCK:
+        if _ABLATION_CACHE is not None:
+            return copy.deepcopy(_ABLATION_CACHE)
+
+        eval_conn = get_connection(":memory:")
+        try:
+            init_db(eval_conn)
+            seed_corpus(eval_conn, data_dir=str(DATA_DIR))
+            result = _compute_ablation_benchmark(eval_conn)
+            _ABLATION_CACHE = result
+            return copy.deepcopy(result)
+        finally:
+            eval_conn.close()
+
+
+def _compute_ablation_benchmark(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Run deterministic ablation checks against an isolated seeded connection."""
     scenarios_data = json.loads((DATA_DIR / "scenarios.json").read_text(encoding="utf-8"))
     scenarios = scenarios_data.get("scenarios", [])
-
-    # Ensure we evaluate against a seeded corpus
-    doc_count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
-    if doc_count == 0:
-        seed_corpus(conn, data_dir=str(DATA_DIR))
 
     # 1. Verify ReconcileGraph deterministic guardrail suite directly against seeded corpus
     resolver = AliasResolver(conn)

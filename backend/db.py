@@ -12,9 +12,12 @@ from typing import Any
 
 
 def get_connection(db_path: str = "reconcilegraph.db") -> sqlite3.Connection:
-    """Open a SQLite connection configured with sqlite3.Row factory."""
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    """Open a SQLite connection configured with WAL mode, busy timeout, and Row factory."""
+    conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    if db_path != ":memory:":
+        conn.execute("PRAGMA busy_timeout=30000;")
+        conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 
 

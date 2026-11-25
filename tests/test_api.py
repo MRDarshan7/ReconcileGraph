@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
@@ -207,4 +208,33 @@ def test_full_api_workflow_signoff_lock_and_ablation(
         assert custom_data["eco"]["target_entity"] == "P-101"
         assert custom_data["eco"]["proposed_changes"]["discharge_pressure_bar"] == 14.0
         assert custom_data["can_sign_off"] is False
+
+
+def test_concurrent_ablation_and_runs_no_db_lock(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("GEMINI_API_KEYS", "")
+    monkeypatch.delenv("GEMINI_API_KEY_1", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY_2", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY_3", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    app.state.db_path = str(tmp_path / "concurrent_test.db")
+
+    with TestClient(app) as client:
+        def call_ablation() -> int:
+            return client.get("/api/ablation").status_code
+
+        def call_run() -> int:
+            return client.post("/api/runs", json={"scenario_id": "eco_01_pump_upgrade"}).status_code
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            ablation_futures = [pool.submit(call_ablation) for _ in range(12)]
+            run_futures = [pool.submit(call_run) for _ in range(4)]
+
+            ablation_statuses = [f.result() for f in ablation_futures]
+            run_statuses = [f.result() for f in run_futures]
+
+        assert all(code == 200 for code in ablation_statuses)
+        assert all(code == 200 for code in run_statuses)
 

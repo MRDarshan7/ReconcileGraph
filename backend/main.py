@@ -270,10 +270,4 @@ def sign_off_run(run_id: str, payload: SignOffRequest | None = None) -> dict[str
 
 @app.get("/api/ablation")
 def get_ablation() -> dict[str, Any]:
-    conn = _get_db(app)
-    try:
-        if conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 0:
-            seed_corpus(conn, data_dir=str(DATA_DIR))
-        return run_ablation_benchmark(conn)
-    finally:
-        conn.close()
+    return run_ablation_benchmark()
