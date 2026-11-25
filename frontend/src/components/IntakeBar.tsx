@@ -87,7 +87,7 @@ export function IntakeBar({
             </div>
 
             <div
-              className={`flex flex-wrap items-center gap-2.5 transition-all duration-500 ease-out ${
+              className={`flex flex-wrap items-center gap-2.5 transition-all duration-[700ms] delay-[400ms] ease-out ${
                 revealChrome
                   ? "translate-y-0 opacity-100"
                   : "translate-y-2 opacity-0"
@@ -123,7 +123,7 @@ export function IntakeBar({
 
           {/* Right Actions */}
           <div
-            className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${
+            className={`flex items-center gap-2.5 transition-all duration-[700ms] delay-[400ms] ease-out ${
               revealChrome
                 ? "translate-y-0 opacity-100"
                 : "translate-y-2 opacity-0"

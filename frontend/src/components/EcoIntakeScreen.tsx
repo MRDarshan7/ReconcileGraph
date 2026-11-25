@@ -61,7 +61,7 @@ interface ExamplePreset {
 const EXAMPLE_PRESETS: ExamplePreset[] = [
   {
     id: "eco_01",
-    buttonLabel: "ECO-01: Swap P-101 -> Centriflo-550 (14.0 bar)",
+    buttonLabel: "ECO-01: Swap P-101 → Centriflo-550 (14.0 bar)",
     scenarioId: "eco_01_pump_upgrade",
     targetEntityId: "P-101",
     title: "ECO-01: High-Capacity Pump P-101 Upgrade",
@@ -83,7 +83,7 @@ const EXAMPLE_PRESETS: ExamplePreset[] = [
   },
   {
     id: "eco_03",
-    buttonLabel: "ECO-03: Upgrade V-12 -> Class 300 (25.0 bar)",
+    buttonLabel: "ECO-03: Upgrade V-12 → Class 300 (25.0 bar)",
     scenarioId: "eco_03_valve_upgrade",
     targetEntityId: "V-12",
     title: "ECO-03: Valve V-12 Class 300 Upgrade",
@@ -108,19 +108,12 @@ export function EcoIntakeScreen({
   revealCard = true,
 }: EcoIntakeScreenProps) {
   const [targetEntityId, setTargetEntityId] = useState<string>("P-101");
-  const [linkedScenarioId, setLinkedScenarioId] = useState<string | null>(
-    "eco_01_pump_upgrade"
-  );
-  const [title, setTitle] = useState<string>(EXAMPLE_PRESETS[0].title);
-  const [proposedModel, setProposedModel] = useState<string>(
-    EXAMPLE_PRESETS[0].proposedModel
-  );
-  const [proposedPressureBar, setProposedPressureBar] = useState<string>(
-    EXAMPLE_PRESETS[0].proposedPressureBar
-  );
-  const [proposedSpecText, setProposedSpecText] = useState<string>(
-    EXAMPLE_PRESETS[0].proposedSpecText
-  );
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+  const [linkedScenarioId, setLinkedScenarioId] = useState<string | null>(null);
+  const [title, setTitle] = useState<string>("");
+  const [proposedModel, setProposedModel] = useState<string>("");
+  const [proposedPressureBar, setProposedPressureBar] = useState<string>("");
+  const [proposedSpecText, setProposedSpecText] = useState<string>("");
   const [attachedFileName, setAttachedFileName] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [activeProgressStep, setActiveProgressStep] = useState<number>(0);
@@ -139,6 +132,7 @@ export function EcoIntakeScreen({
 
   const handleLoadPreset = (preset: ExamplePreset) => {
     setTargetEntityId(preset.targetEntityId);
+    setSelectedPresetId(preset.id);
     setLinkedScenarioId(preset.scenarioId);
     setTitle(preset.title);
     setProposedModel(preset.proposedModel);
@@ -148,8 +142,20 @@ export function EcoIntakeScreen({
     setValidationError(null);
   };
 
+  const handleClearForm = () => {
+    setSelectedPresetId(null);
+    setLinkedScenarioId(null);
+    setTitle("");
+    setProposedModel("");
+    setProposedPressureBar("");
+    setProposedSpecText("");
+    setAttachedFileName(null);
+    setValidationError(null);
+  };
+
   const handleSelectEquipment = (id: string) => {
     setTargetEntityId(id);
+    setSelectedPresetId(null);
     setLinkedScenarioId(null);
   };
 
@@ -159,6 +165,7 @@ export function EcoIntakeScreen({
     const text = await file.text();
     setAttachedFileName(file.name);
     setProposedSpecText(text);
+    setSelectedPresetId(null);
     setLinkedScenarioId(null);
 
     const pressureMatch = text.match(/(\d+(?:\.\d+)?)\s*(bar|psi)\b/i);
@@ -173,9 +180,21 @@ export function EcoIntakeScreen({
     }
   };
 
+  const canSubmit =
+    proposedPressureBar.trim() !== "" || proposedSpecText.trim() !== "";
+
+  const hasAnyInput = Boolean(
+    selectedPresetId ||
+      title.trim() ||
+      proposedModel.trim() ||
+      proposedPressureBar.trim() ||
+      proposedSpecText.trim() ||
+      attachedFileName
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!proposedSpecText.trim() && !proposedPressureBar.trim()) {
+    if (!canSubmit) {
       setValidationError(
         "Attach a specification file or enter proposed spec details before submitting."
       );
@@ -201,8 +220,10 @@ export function EcoIntakeScreen({
 
   return (
     <main
-      className={`mx-auto max-w-5xl px-4 py-6 transition-all duration-500 ease-out ${
-        revealCard ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+      className={`mx-auto max-w-5xl px-4 py-6 transition-all duration-[1000ms] delay-[220ms] [transition-timing-function:cubic-bezier(0.16,1,0.3,1)] ${
+        revealCard
+          ? "translate-y-0 scale-100 opacity-100"
+          : "translate-y-10 scale-[0.99] opacity-0"
       }`}
     >
       <div className="rounded-xl border border-slate-200 bg-white shadow-xs">
@@ -296,11 +317,23 @@ export function EcoIntakeScreen({
               </label>
             </div>
 
-            {/* Quick Example Presets (Populate without auto-submitting) */}
+            {/* Reference Templates + Clear */}
             <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
-                <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                Reference Templates:
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  Reference Templates:
+                </div>
+                {hasAnyInput && (
+                  <button
+                    type="button"
+                    disabled={isRunning}
+                    onClick={handleClearForm}
+                    className="rounded px-2 py-0.5 text-[11px] font-medium text-slate-500 transition hover:bg-slate-200/70 hover:text-slate-800"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {EXAMPLE_PRESETS.map((preset) => (
@@ -310,7 +343,7 @@ export function EcoIntakeScreen({
                     disabled={isRunning}
                     onClick={() => handleLoadPreset(preset)}
                     className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
-                      linkedScenarioId === preset.scenarioId
+                      selectedPresetId === preset.id
                         ? "border-slate-900 bg-slate-900 text-white"
                         : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
                     }`}
@@ -347,8 +380,8 @@ export function EcoIntakeScreen({
                   disabled={isRunning}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Replace Pump P-101 with Centriflo-550"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-slate-600 focus:outline-none"
+                  placeholder="e.g., High-Capacity Pump P-101 Upgrade"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-600 focus:outline-none"
                 />
               </div>
               <div>
@@ -361,10 +394,11 @@ export function EcoIntakeScreen({
                   value={proposedModel}
                   onChange={(e) => {
                     setProposedModel(e.target.value);
+                    setSelectedPresetId(null);
                     setLinkedScenarioId(null);
                   }}
                   placeholder="e.g., Centriflo-550"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 focus:border-slate-600 focus:outline-none"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-600 focus:outline-none"
                 />
               </div>
               <div>
@@ -379,10 +413,11 @@ export function EcoIntakeScreen({
                   value={proposedPressureBar}
                   onChange={(e) => {
                     setProposedPressureBar(e.target.value);
+                    setSelectedPresetId(null);
                     setLinkedScenarioId(null);
                   }}
-                  placeholder="Parsed from spec if blank"
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 font-mono-code text-xs text-slate-900 focus:border-slate-600 focus:outline-none"
+                  placeholder="e.g., 14.0"
+                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 font-mono-code text-xs text-slate-900 placeholder:text-slate-400 focus:border-slate-600 focus:outline-none"
                 />
               </div>
             </div>
@@ -397,10 +432,11 @@ export function EcoIntakeScreen({
                 value={proposedSpecText}
                 onChange={(e) => {
                   setProposedSpecText(e.target.value);
+                  setSelectedPresetId(null);
                   setLinkedScenarioId(null);
                 }}
-                placeholder="Paste or type replacement datasheet parameters (e.g. Proposed Discharge Pressure: 14.0 bar or 203 psi, Flow: 145 m3/h)..."
-                className="mt-1 w-full rounded-md border border-slate-300 p-3 font-mono-code text-xs leading-5 text-slate-900 focus:border-slate-600 focus:outline-none"
+                placeholder="Enter or paste proposed replacement specifications (discharge pressure in bar or psi, flow rate, flange rating, seal material), or attach a .md / .txt file..."
+                className="mt-1 w-full rounded-md border border-slate-300 p-3 font-mono-code text-xs leading-5 text-slate-900 placeholder:text-slate-400 focus:border-slate-600 focus:outline-none"
               />
             </div>
           </section>
@@ -447,11 +483,11 @@ export function EcoIntakeScreen({
               </div>
             </section>
           ) : (
-            <div className="flex items-center justify-between border-t border-slate-200 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
               <div className="text-xs text-slate-500">
                 Target:{" "}
                 <strong className="font-mono-code text-slate-800">{targetEntityId}</strong>
-                {proposedPressureBar && (
+                {proposedPressureBar ? (
                   <>
                     {" "}
                     • Proposed Pressure:{" "}
@@ -459,11 +495,16 @@ export function EcoIntakeScreen({
                       {proposedPressureBar} bar
                     </strong>
                   </>
-                )}
+                ) : !canSubmit ? (
+                  <span className="ml-2 text-slate-400">
+                    — Enter a proposed pressure or replacement specification to enable submission.
+                  </span>
+                ) : null}
               </div>
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800"
+                disabled={!canSubmit || isRunning}
+                className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <Play className="h-3.5 w-3.5" />
                 Submit &amp; Run Verification

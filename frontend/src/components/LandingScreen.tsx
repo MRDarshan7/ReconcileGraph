@@ -35,7 +35,7 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
 
   return (
     <div
-      className={`fixed inset-0 z-40 flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 transition-opacity duration-350 ease-out ${
+      className={`fixed inset-0 z-40 flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 transition-opacity duration-[750ms] ease-out ${
         isExiting ? "pointer-events-none opacity-0" : "opacity-100"
       }`}
     >
@@ -56,7 +56,7 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
       <button
         type="button"
         onClick={triggerEnter}
-        className={`group mt-8 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3 text-sm font-medium tracking-wide text-white shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0 ${
+        className={`group mt-8 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-8 py-3 text-sm font-medium tracking-wide text-white shadow-sm transition-all duration-[750ms] ease-out hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md active:translate-y-0 ${
           isExiting ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >

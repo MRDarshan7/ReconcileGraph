@@ -73,7 +73,7 @@ export default function App() {
       if (failsafeTimerRef.current !== null) {
         window.clearTimeout(failsafeTimerRef.current);
       }
-      failsafeTimerRef.current = window.setTimeout(finishMorph, 700);
+      failsafeTimerRef.current = window.setTimeout(finishMorph, 1150);
     },
     [finishMorph]
   );
@@ -111,7 +111,7 @@ export default function App() {
       const el = floatingBrandRef.current;
       if (!el) return;
       void el.offsetWidth;
-      el.style.transition = "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)";
+      el.style.transition = "transform 1100ms cubic-bezier(0.16, 1, 0.3, 1)";
       el.style.transform = "translate3d(0px, 0px, 0) scale(1)";
       setRevealWorkspaceChrome(true);
     });
