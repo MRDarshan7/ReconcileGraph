@@ -29,54 +29,62 @@ const METRIC_LABELS: Array<{
   { key: "overall_score", label: "Overall Score" },
 ];
 
+const AGENT_DISPLAY_NAMES: Record<string, string> = {
+  ExtractionAgent: "Record Extraction",
+  ReconciliationAgent: "Unit & Revision Reconciliation",
+  ImpactAgent: "Downstream Impact Check",
+  AuditorAgent: "Citation Audit",
+  ReviewGate: "Sign-Off Gate",
+};
+
 function formatNarrative(evt: AuditEvent): { summary: string; badge: string; tone: string } {
   const detail = evt.detail;
 
   if (evt.rule_id === "RULE_UNIT_CONFLICT") {
     return {
-      summary: `Converted ${String(detail.claim_b ?? "175 psi")} and flagged value mismatch against ${String(detail.claim_a ?? "10.0 bar")} Spec Rev B.`,
+      summary: `Converted ${String(detail.claim_b ?? "175 psi")} and flagged mismatch against ${String(detail.claim_a ?? "10.0 bar")} Spec Rev B.`,
       badge: "Conflict Flagged",
       tone: "bg-amber-100 text-amber-900",
     };
   }
   if (evt.rule_id.startsWith("RULE_BOUNDED_RETRY")) {
     return {
-      summary: `Targeted re-extraction attempt #${String(detail.attempt ?? 1)} checked ${String(detail.doc_id ?? "doc4_maint_log.md")} for missing '${String(detail.slot ?? "vibration_baseline")}' — confirmed absent.`,
-      badge: "Bounded Retry",
+      summary: `Re-checked maintenance log (attempt ${String(detail.attempt ?? 1)}) for missing '${String(detail.slot ?? "vibration_baseline")}' — confirmed absent.`,
+      badge: "Re-checked Log",
       tone: "bg-amber-100 text-amber-900",
     };
   }
   if (evt.rule_id === "RULE_AUDIT_REJECT_UNGROUNDED") {
     return {
-      summary: `Blocked ungrounded candidate finding (${String(detail.span_id ?? "missing span")}) lacking a verified SHA-256 source excerpt.`,
+      summary: "Blocked an ungrounded finding lacking a verified source document citation.",
       badge: "Blocked",
       tone: "bg-rose-100 text-rose-800",
     };
   }
   if (evt.action === "decision re-checks impact") {
     return {
-      summary: `Recorded decision '${String(detail.resolution_choice ?? "")}' on ${String(detail.entity_id ?? "")} and re-checked downstream impact.`,
-      badge: "Re-checked",
+      summary: `Recorded engineering decision '${String(detail.resolution_choice ?? "")}' for ${String(detail.entity_id ?? "")} and re-verified downstream impact.`,
+      badge: "Re-verified",
       tone: "bg-emerald-100 text-emerald-800",
     };
   }
   if (evt.rule_id === "RULE_BFS_BLAST_RADIUS") {
     return {
-      summary: `Traversed ${String(detail.node_count ?? 5)} connected equipment/SOP nodes across ${String(detail.edge_count ?? 5)} dependency edges from ${String(detail.target_entity ?? "P-101")}.`,
-      badge: "Graph BFS",
+      summary: `Mapped ${String(detail.node_count ?? 5)} connected plant assets and procedures across ${String(detail.edge_count ?? 5)} dependencies from ${String(detail.target_entity ?? "P-101")}.`,
+      badge: "Impact Mapped",
       tone: "bg-slate-100 text-slate-700",
     };
   }
   if (evt.rule_id === "RULE_RECONCILE_NORMALIZE") {
     return {
-      summary: `Normalized ${String(detail.total_claims ?? 0)} claims via AliasResolver, Pint, and RevisionComparator (excluded ${String(detail.superseded_claims ?? 0)} superseded claims).`,
+      summary: `Normalized ${String(detail.total_claims ?? 0)} extracted claims across equipment tags, units, and revisions (excluded ${String(detail.superseded_claims ?? 0)} superseded claims).`,
       badge: "Reconciled",
       tone: "bg-emerald-100 text-emerald-800",
     };
   }
   if (evt.rule_id === "RULE_AUDIT_COMPLETE") {
     return {
-      summary: `Completed fail-closed audit: ${String(detail.verified ?? 0)} verified, ${String(detail.escalated ?? 0)} escalated for decision, ${String(detail.rejected ?? 0)} rejected.`,
+      summary: `Completed citation audit: ${String(detail.verified ?? 0)} verified, ${String(detail.escalated ?? 0)} needing decision, ${String(detail.rejected ?? 0)} blocked.`,
       badge: "Audit Complete",
       tone: "bg-emerald-100 text-emerald-800",
     };
@@ -88,9 +96,16 @@ function formatNarrative(evt: AuditEvent): { summary: string; badge: string; ton
       tone: "bg-emerald-100 text-emerald-800",
     };
   }
+  if (evt.rule_id === "RULE_LLM_FALLBACK") {
+    return {
+      summary: "Switched to offline deterministic verification checks.",
+      badge: "Offline Mode",
+      tone: "bg-amber-100 text-amber-900",
+    };
+  }
   return {
     summary: evt.action,
-    badge: evt.rule_id,
+    badge: "Completed",
     tone: "bg-slate-100 text-slate-700",
   };
 }
@@ -104,13 +119,13 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
 
   return (
     <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-5 bg-slate-50 p-5 lg:grid-cols-12">
-      {/* Left Column: Agent Execution Story */}
+      {/* Left Column: Verification Log */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-6">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-slate-700" />
             <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              Agent Execution Story
+              Verification Log
             </h2>
           </div>
           <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-mono-code text-[11px] font-semibold text-slate-600">
@@ -146,7 +161,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                       <Bot className="h-4 w-4 text-slate-600" />
                     )}
                     <span className="text-xs font-bold text-slate-900">
-                      {evt.agent_name}
+                      {AGENT_DISPLAY_NAMES[evt.agent_name] ?? evt.agent_name}
                     </span>
                   </div>
 
@@ -159,7 +174,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                   {narrative.summary}
                 </p>
 
-                <div className="mt-2 flex items-center justify-between">
+                <div className="mt-2">
                   <button
                     type="button"
                     onClick={() => togglePayload(evt.id)}
@@ -170,16 +185,13 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                     ) : (
                       <ChevronRight className="h-3.5 w-3.5" />
                     )}
-                    Show technical payload
+                    Show technical details
                   </button>
-                  <span className="font-mono-code text-[10px] text-slate-400">
-                    {evt.rule_id}
-                  </span>
                 </div>
 
                 {isExpanded && (
                   <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-900 p-3 font-mono-code text-[11px] text-slate-100">
-                    {JSON.stringify(evt.detail, null, 2)}
+                    {JSON.stringify({ rule_id: evt.rule_id, ...evt.detail }, null, 2)}
                   </pre>
                 )}
               </div>
@@ -188,13 +200,13 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
         </div>
       </section>
 
-      {/* Right Column: 3-Way Ablation Benchmark with Visual Progress Bars */}
+      {/* Right Column: Benchmark Comparison with Visual Progress Bars */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-6">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-slate-700" />
             <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-              3-Way Ablation Benchmark ({ablation?.scenario_count ?? 3} Scenarios)
+              System Benchmark ({ablation?.scenario_count ?? 3} Scenarios)
             </h2>
           </div>
           <span className="text-xs font-medium text-slate-500">0% – 100%</span>
@@ -292,7 +304,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
               </div>
             </>
           ) : (
-            <p className="text-xs text-slate-500">Loading ablation benchmark...</p>
+            <p className="text-xs text-slate-500">Loading benchmark data...</p>
           )}
         </div>
       </section>

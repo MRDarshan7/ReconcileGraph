@@ -94,10 +94,10 @@ const EXAMPLE_PRESETS: ExamplePreset[] = [
 ];
 
 const LIVE_PROGRESS_STEPS = [
-  "1. Extraction Agent reading 5 plant records + attached spec",
-  "2. Reconciliation Agent normalizing units & checking revisions",
-  "3. Impact Agent traversing downstream graph",
-  "4. Auditor Agent verifying SHA-256 source spans",
+  "Reading engineering records and replacement spec",
+  "Reconciling units, equipment tags, and revisions",
+  "Tracing downstream system impact",
+  "Verifying source citations",
 ];
 
 export function EcoIntakeScreen({
@@ -208,11 +208,11 @@ export function EcoIntakeScreen({
               </h2>
               <p className="mt-0.5 text-xs text-slate-600">
                 Select the Plant Line-4 component to modify, attach or edit the replacement
-                specification, and launch the 4-agent verification pipeline.
+                specification, and launch the verification.
               </p>
             </div>
-            <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 font-mono-code text-[11px] font-semibold text-slate-600">
-              5 Corpus Records Ready
+            <span className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
+              Plant Line-4 Records Linked
             </span>
           </div>
         </div>
@@ -294,7 +294,7 @@ export function EcoIntakeScreen({
             <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
               <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
                 <Sparkles className="h-3.5 w-3.5 text-amber-600" />
-                Load Example Spec (populates fields for review before submitting):
+                Reference Templates:
               </div>
               <div className="flex flex-wrap gap-2">
                 {EXAMPLE_PRESETS.map((preset) => (
@@ -410,7 +410,7 @@ export function EcoIntakeScreen({
             <section className="rounded-lg border border-slate-300 bg-slate-900 p-4 text-white">
               <div className="flex items-center gap-2 text-xs font-bold tracking-wide uppercase">
                 <Cpu className="h-4 w-4 text-emerald-400" />
-                Executing 4-Agent ReconcileGraph Verification Pipeline
+                Executing ReconcileGraph
               </div>
               <div className="mt-3 space-y-2">
                 {LIVE_PROGRESS_STEPS.map((label, idx) => {

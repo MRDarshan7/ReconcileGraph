@@ -75,13 +75,13 @@ export function IntakeBar({
                   ReconcileGraph
                 </h1>
                 <span className="text-xs font-medium text-slate-500">
-                  Plant Line-4 Change Verification
+                  Engineering Change Verification
                 </span>
 
                 {runState && !isIntakeActive && runState.execution_mode === "LIVE_GEMINI" && (
                   <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                     <Cpu className="h-3.5 w-3.5" />
-                    Live Gemini • {runState.active_key_slot ?? "Key #1"}
+                    Live AI
                   </span>
                 )}
 
@@ -89,18 +89,18 @@ export function IntakeBar({
                   !isIntakeActive &&
                   runState.execution_mode === "DETERMINISTIC_FALLBACK" && (
                     <span
-                      title={runState.fallback_notice ?? "Deterministic guardrail fallback active"}
+                      title={runState.fallback_notice ?? "Running in offline verification mode"}
                       className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900"
                     >
                       <AlertTriangle className="h-3.5 w-3.5" />
-                      Deterministic Fallback
+                      Offline Mode
                     </span>
                   )}
               </div>
             </div>
           </div>
 
-          {/* Right CTAs */}
+          {/* Right Actions */}
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -151,18 +151,19 @@ export function IntakeBar({
           </div>
         </div>
 
-        {/* Fallback Warning Banner (only if fallback occurred) */}
+        {/* Concise Offline Mode Notice */}
         {runState &&
           !isIntakeActive &&
-          runState.execution_mode === "DETERMINISTIC_FALLBACK" &&
-          runState.fallback_notice && (
+          runState.execution_mode === "DETERMINISTIC_FALLBACK" && (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-xs font-medium text-amber-900">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" />
-              <span>{runState.fallback_notice}</span>
+              <span>
+                Running in offline verification mode — deterministic unit, revision, and citation checks remain active.
+              </span>
             </div>
           )}
 
-        {/* Row 2: Sub-navigation & Pipeline Summary */}
+        {/* Row 2: Sub-navigation & Status */}
         {!isIntakeActive && runState && (
           <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
             <nav className="flex flex-wrap items-center gap-1.5" aria-label="Workbench Views">
@@ -176,7 +177,7 @@ export function IntakeBar({
                 }`}
               >
                 <Layers className="h-3.5 w-3.5" />
-                1. Evidence Review
+                Evidence Review
                 <span
                   className={`rounded-full px-1.5 py-0.5 font-mono-code text-[10px] ${
                     activeTab === "review"
@@ -198,7 +199,7 @@ export function IntakeBar({
                 }`}
               >
                 <GitBranch className="h-3.5 w-3.5" />
-                2. Impact Graph
+                Impact Map
                 <span
                   className={`rounded-full px-1.5 py-0.5 font-mono-code text-[10px] ${
                     activeTab === "graph"
@@ -206,7 +207,7 @@ export function IntakeBar({
                       : "bg-white text-slate-700"
                   }`}
                 >
-                  {runState.subgraph.nodes.length} nodes
+                  {runState.subgraph.nodes.length}
                 </span>
               </button>
 
@@ -220,20 +221,13 @@ export function IntakeBar({
                 }`}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
-                3. Audit &amp; Benchmark
+                Verification Log &amp; Benchmarks
               </button>
             </nav>
 
-            <div
-              title="1. Extraction -> 2. Reconciliation (Pint/Alias/Revision) -> 3. Impact BFS -> 4. Fail-Closed Auditor"
-              className="inline-flex cursor-help items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1 text-xs font-medium text-emerald-900"
-            >
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/70 px-3 py-1 text-xs font-medium text-emerald-900">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              <span>All 4 Agents Complete</span>
-              <span className="text-emerald-600/70">•</span>
-              <span className="font-mono-code text-[11px] text-emerald-800">
-                {String(runState.eco.title ?? runState.eco.target_entity ?? "ECO")}
-              </span>
+              <span>Verification Complete</span>
             </div>
           </div>
         )}

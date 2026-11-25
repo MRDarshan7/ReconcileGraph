@@ -23,9 +23,24 @@ const FIXED_POSITIONS: Record<string, { x: number; y: number }> = {
   "INSP-04": { x: 760, y: 220 },
 };
 
+const RELATION_LABELS: Record<string, string> = {
+  CONNECTS_TO: "Connects to",
+  GOVERNED_BY: "Governed by",
+  INSPECTED_IN: "Inspected in",
+};
+
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  pump: "Pump",
+  valve: "Check Valve",
+  relief_valve: "Relief Valve",
+  sop: "Procedure",
+  inspection_certificate: "Inspection",
+};
+
 export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
+  const targetEntity = runState.eco.target_entity ?? "P-101";
+
   const { nodes, edges } = useMemo(() => {
-    const targetEntity = runState.eco.target_entity ?? "P-101";
     const useFixedPumpLayout = targetEntity === "P-101";
 
     const hopBuckets = new Map<number, typeof runState.subgraph.nodes>();
@@ -83,8 +98,8 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
                   <span className="font-mono-code text-sm font-bold">
                     {ent.canonical_id}
                   </span>
-                  <span className="rounded-full bg-slate-900/10 px-2 py-0.5 font-mono-code text-[10px] font-semibold">
-                    Hop {ent.hop}
+                  <span className="rounded-full bg-slate-900/10 px-2 py-0.5 text-[10px] font-semibold">
+                    {ent.hop === 0 ? "Target" : `Step ${ent.hop}`}
                   </span>
                 </div>
 
@@ -93,8 +108,8 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
                 </div>
 
                 <div className="mt-3 flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-500 uppercase">
-                    {ent.entity_type.replaceAll("_", " ")}
+                  <span className="text-[10px] font-medium text-slate-500">
+                    {ENTITY_TYPE_LABELS[ent.entity_type] ?? ent.entity_type}
                   </span>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${pillStyle}`}>
                     {statusLabel}
@@ -118,12 +133,12 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
       source: e.source_id,
       target: e.target_id,
       type: "smoothstep",
-      label: e.relation,
+      label: RELATION_LABELS[e.relation] ?? e.relation,
       animated: runState.conflicts.some(
         (c) => c.entity_id === e.target_id && c.status === "OPEN"
       ),
       style: { stroke: "#64748b", strokeWidth: 2 },
-      labelStyle: { fontSize: 10, fontWeight: 700, fill: "#334155" },
+      labelStyle: { fontSize: 11, fontWeight: 600, fill: "#334155" },
       labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95 },
       labelBgPadding: [6, 4],
       labelBgBorderRadius: 6,
@@ -134,7 +149,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
     }));
 
     return { nodes: rfNodes, edges: rfEdges };
-  }, [runState]);
+  }, [runState, targetEntity]);
 
   return (
     <div className="mx-auto max-w-[1600px] p-5">
@@ -142,14 +157,14 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
           <div>
             <h2 className="text-sm font-bold text-slate-900">
-              Downstream Blast-Radius Dependency Graph
+              Downstream Impact Map
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              BFS propagation from target{" "}
+              Connected equipment, safety valves, and procedures affected by{" "}
               <span className="font-mono-code font-semibold text-slate-700">
-                {runState.eco.target_entity ?? "P-101"}
+                {targetEntity}
               </span>{" "}
-              — click any node to open its evidence in Review Workspace
+              (click any node to inspect)
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs font-semibold">

@@ -11,6 +11,7 @@ import {
 import type {
   ClaimRecord,
   ConflictRecord,
+  ConflictType,
   DocumentRecord,
   FindingRecord,
   RunState,
@@ -37,6 +38,12 @@ const DOC_TAB_LABELS: Record<string, string> = {
   "doc3_pump_spec_revB.md": "Spec Rev B",
   "doc4_maint_log.md": "Maint Log",
   "doc5_valve_sop_insp.md": "Compliance",
+};
+
+const CONFLICT_TYPE_LABELS: Record<ConflictType, string> = {
+  VALUE_MISMATCH: "Value Mismatch",
+  DOWNSTREAM_OVERLOAD: "Downstream Limit Exceeded",
+  MISSING_EVIDENCE: "Missing Safety Evidence",
 };
 
 const QUICK_RESOLUTION_PRESETS = [
@@ -67,7 +74,7 @@ function formatClaimLine(claim: ClaimRecord | null): string {
     claim.norm_unit &&
     claim.raw_unit.toLowerCase() !== claim.norm_unit.toLowerCase()
   ) {
-    return `${claim.norm_value} ${claim.norm_unit} [converted from ${claim.raw_value} ${claim.raw_unit}]`;
+    return `${claim.norm_value} ${claim.norm_unit} [from ${claim.raw_value} ${claim.raw_unit}]`;
   }
   if (claim.norm_value && claim.norm_unit) {
     return `${claim.norm_value} ${claim.norm_unit}`;
@@ -218,30 +225,26 @@ export function ReviewWorkspace({
     );
   }, [runState.subgraph.nodes, selectedFinding]);
 
-  const guardrailChecks = useMemo(() => {
+  const verificationChecks = useMemo(() => {
     if (!selectedFinding) return [];
     const isRejected = selectedFinding.audit_status === "REJECTED";
     return [
       {
-        label: "Equipment alias matched",
-        rule: "RULE_ALIAS_NORM",
+        label: "Equipment tag matched",
         passed: !isRejected,
       },
       {
-        label: "Units normalized via Pint",
-        rule: "RULE_UNIT_PINT",
+        label: "Units normalized",
         passed: !isRejected,
       },
       {
         label: "Revision currency verified",
-        rule: "RULE_REV_PRECEDENCE",
         passed: !isRejected,
       },
       {
         label: isRejected
-          ? "SHA-256 source span missing (blocked)"
-          : "SHA-256 source span verified",
-        rule: "RULE_SPAN_HASH_PROV",
+          ? "Source citation missing (blocked)"
+          : "Source citation verified",
         passed: !isRejected,
       },
     ];
@@ -249,7 +252,7 @@ export function ReviewWorkspace({
 
   return (
     <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-5 bg-slate-50 p-5 lg:grid-cols-[28fr_40fr_32fr]">
-      {/* LEFT PANE (28%): Scannable Findings List ONLY */}
+      {/* LEFT PANE (28%): Clean Scannable Findings List */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
@@ -317,24 +320,24 @@ export function ReviewWorkspace({
         </div>
       </section>
 
-      {/* CENTER PANE (40%): Readable Document & Exact Span Viewer */}
+      {/* CENTER PANE (40%): Document & Exact Span Viewer */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
           <div className="mb-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-slate-600" />
               <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-                Source Document &amp; Proof Span
+                Engineering Record &amp; Citation
               </h2>
             </div>
             {selectedSpan && activeDoc && selectedSpan.doc_id === activeDoc.id && (
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-mono-code text-[10px] font-semibold text-amber-900">
-                Span [{selectedSpan.char_start} : {selectedSpan.char_end}]
+                Citation [{selectedSpan.char_start} : {selectedSpan.char_end}]
               </span>
             )}
           </div>
 
-          {/* Wrapped pill bar so all 5 corpus docs fit cleanly without horizontal clipping */}
+          {/* Wrapped pill bar so all 5 documents fit cleanly */}
           <div className="flex flex-wrap gap-1.5">
             {runState.documents.map((doc) => {
               const isActive = activeDoc?.id === doc.id;
@@ -367,7 +370,6 @@ export function ReviewWorkspace({
           )}
         </div>
 
-        {/* Clean Footer Strip */}
         {activeDoc && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] text-slate-600">
             <div className="flex items-center gap-2">
@@ -380,32 +382,32 @@ export function ReviewWorkspace({
               >
                 {activeDoc.rev_label} • {activeDoc.status}
               </span>
-              <span className="text-slate-500">{activeDoc.id}</span>
+              <span className="text-slate-500">{activeDoc.title}</span>
             </div>
             <span className="font-mono-code text-[10px] text-slate-500">
-              SHA-256: {activeDoc.content_hash.slice(0, 16)}…
+              Checksum: {activeDoc.content_hash.slice(0, 16)}…
             </span>
           </div>
         )}
       </section>
 
-      {/* RIGHT PANE (32%): Evidence Comparison & Action Panel */}
+      {/* RIGHT PANE (32%): Evidence Comparison & Resolution */}
       <section className="flex max-h-[calc(100vh-175px)] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
           <Scale className="h-4 w-4 text-slate-600" />
           <h2 className="text-xs font-bold tracking-wide text-slate-900 uppercase">
-            Evidence &amp; Decision Inspector
+            Evidence &amp; Resolution
           </h2>
         </div>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
           {selectedFinding ? (
             <>
-              {/* Section 1: Plain-English Evidence & Unit Check */}
+              {/* Section 1: Evidence & Unit Check */}
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-bold tracking-wide text-slate-500 uppercase">
-                    1. Evidence &amp; Unit Check
+                    Evidence &amp; Unit Check
                   </span>
                   <span className="rounded-md bg-white px-2 py-0.5 font-mono-code text-[11px] font-bold text-slate-800 shadow-2xs">
                     {selectedEntityNode?.name ?? selectedFinding.entity_id}
@@ -414,9 +416,9 @@ export function ReviewWorkspace({
 
                 {selectedEntityNode && selectedEntityNode.aliases.length > 0 && (
                   <p className="text-xs text-slate-600">
-                    Canonical asset{" "}
+                    Component{" "}
                     <strong className="text-slate-900">{selectedEntityNode.canonical_id}</strong>{" "}
-                    matched across aliases:{" "}
+                    matched across plant tags:{" "}
                     <span className="font-mono-code text-[11px] text-slate-700">
                       {selectedEntityNode.aliases.join(", ")}
                     </span>
@@ -433,8 +435,9 @@ export function ReviewWorkspace({
                         {formatClaimLine(competingClaimA)}
                       </div>
                       {competingClaimA.span_id && spanMap.get(competingClaimA.span_id) && (
-                        <div className="mt-1 font-mono-code text-[10px] text-slate-500">
-                          {spanMap.get(competingClaimA.span_id)?.doc_id}
+                        <div className="mt-1 text-[11px] text-slate-500">
+                          {DOC_TAB_LABELS[spanMap.get(competingClaimA.span_id)!.doc_id] ??
+                            spanMap.get(competingClaimA.span_id)?.doc_id}
                         </div>
                       )}
                     </div>
@@ -452,11 +455,12 @@ export function ReviewWorkspace({
                           ? formatClaimLine(competingClaimB)
                           : selectedConflict.conflict_type === "MISSING_EVIDENCE"
                             ? "Omitted from field log"
-                            : "Exceeds safe envelope"}
+                            : "Exceeds operating limit"}
                       </div>
                       {competingClaimB?.span_id && spanMap.get(competingClaimB.span_id) && (
-                        <div className="mt-1 font-mono-code text-[10px] text-amber-800">
-                          {spanMap.get(competingClaimB.span_id)?.doc_id}
+                        <div className="mt-1 text-[11px] text-amber-800">
+                          {DOC_TAB_LABELS[spanMap.get(competingClaimB.span_id)!.doc_id] ??
+                            spanMap.get(competingClaimB.span_id)?.doc_id}
                         </div>
                       )}
                     </div>
@@ -475,17 +479,14 @@ export function ReviewWorkspace({
                 )}
               </div>
 
-              {/* Section 2: Decision / Resolve Conflict Card */}
+              {/* Section 2: Resolve Conflict Action Card */}
               {selectedFinding.audit_status === "ESCALATED" &&
                 selectedConflict &&
                 selectedConflict.status === "OPEN" && (
                   <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50/70 p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-950">
-                        2. Resolve Conflict ({selectedConflict.conflict_type.replaceAll("_", " ")})
-                      </span>
-                      <span className="font-mono-code text-[10px] text-amber-800">
-                        {selectedConflict.id}
+                        Resolve Conflict — {CONFLICT_TYPE_LABELS[selectedConflict.conflict_type]}
                       </span>
                     </div>
 
@@ -517,7 +518,7 @@ export function ReviewWorkspace({
 
                     <textarea
                       rows={2}
-                      placeholder="Enter required engineering rationale for audit log..."
+                      placeholder="Enter required engineering rationale..."
                       value={rationaleByConflict[selectedConflict.id] ?? ""}
                       onChange={(e) =>
                         setRationaleByConflict((prev) => ({
@@ -541,8 +542,8 @@ export function ReviewWorkspace({
                       className="w-full rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-slate-800 disabled:opacity-60"
                     >
                       {resolvingConflictId === selectedConflict.id
-                        ? "Re-checking Impact..."
-                        : "Confirm & Resolve"}
+                        ? "Re-evaluating Impact..."
+                        : "Confirm Resolution"}
                     </button>
                   </div>
                 )}
@@ -562,33 +563,26 @@ export function ReviewWorkspace({
                 </div>
               )}
 
-              {/* Section 3: Deterministic Guardrail Checks */}
+              {/* Section 3: Plain-English Verification Checks */}
               <div className="rounded-xl border border-slate-200 bg-white p-4">
                 <div className="mb-2.5 flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-slate-500 uppercase">
                   <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
-                  3. Deterministic Guardrail Checks
+                  Verification Checks
                 </div>
                 <ul className="space-y-2">
-                  {guardrailChecks.map((chk) => (
+                  {verificationChecks.map((chk) => (
                     <li
-                      key={chk.rule}
-                      className="flex items-center justify-between gap-2 text-xs"
+                      key={chk.label}
+                      className={`flex items-center gap-2 text-xs font-medium ${
+                        chk.passed ? "text-slate-800" : "text-rose-800"
+                      }`}
                     >
-                      <span
-                        className={`inline-flex items-center gap-1.5 font-medium ${
-                          chk.passed ? "text-slate-800" : "text-rose-800"
-                        }`}
-                      >
-                        {chk.passed ? (
-                          <Check className="h-3.5 w-3.5 text-emerald-600" />
-                        ) : (
-                          <ShieldX className="h-3.5 w-3.5 text-rose-600" />
-                        )}
-                        {chk.label}
-                      </span>
-                      <span className="font-mono-code text-[10px] text-slate-400">
-                        {chk.rule}
-                      </span>
+                      {chk.passed ? (
+                        <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      ) : (
+                        <ShieldX className="h-3.5 w-3.5 shrink-0 text-rose-600" />
+                      )}
+                      <span>{chk.label}</span>
                     </li>
                   ))}
                 </ul>
