@@ -18,7 +18,13 @@ from backend.agents import (
     resolve_conflict_and_recheck,
     run_verification_pipeline,
 )
-from backend.db import get_connection, get_downstream_subgraph, init_db, seed_corpus
+from backend.db import (
+    DEFAULT_DATA_DIR,
+    ensure_seeded,
+    get_connection,
+    get_default_db_path,
+    get_downstream_subgraph,
+)
 from backend.evaluator import run_ablation_benchmark
 from backend.llm_client import (
     get_configured_groq_keys,
@@ -28,8 +34,8 @@ from backend.llm_client import (
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DEFAULT_DB_PATH = str(BASE_DIR / "reconcilegraph.db")
+DATA_DIR = Path(DEFAULT_DATA_DIR)
+DEFAULT_DB_PATH = get_default_db_path()
 
 
 class CreateRunRequest(BaseModel):
@@ -47,11 +53,9 @@ class SignOffRequest(BaseModel):
 
 
 def _get_db(app_instance: FastAPI) -> sqlite3.Connection:
-    db_path = getattr(app_instance.state, "db_path", None) or os.getenv(
-        "RECONCILEGRAPH_DB", DEFAULT_DB_PATH
-    )
+    db_path = getattr(app_instance.state, "db_path", None) or get_default_db_path()
     conn = get_connection(db_path)
-    init_db(conn)
+    ensure_seeded(conn, data_dir=str(DATA_DIR))
     ensure_runs_table(conn)
     return conn
 
@@ -59,15 +63,12 @@ def _get_db(app_instance: FastAPI) -> sqlite3.Connection:
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     conn = _get_db(app_instance)
-    try:
-        seed_corpus(conn, data_dir=str(DATA_DIR))
-    finally:
-        conn.close()
+    conn.close()
     yield
 
 
 app = FastAPI(title="ReconcileGraph API", version="0.1.0", lifespan=lifespan)
-app.state.db_path = os.getenv("RECONCILEGRAPH_DB", DEFAULT_DB_PATH)
+app.state.db_path = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -202,8 +203,6 @@ def get_scenarios() -> dict[str, Any]:
 def get_documents() -> dict[str, Any]:
     conn = _get_db(app)
     try:
-        if conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 0:
-            seed_corpus(conn, data_dir=str(DATA_DIR))
         rows = conn.execute("SELECT * FROM documents ORDER BY id").fetchall()
         return {"documents": [dict(r) for r in rows]}
     finally:
@@ -215,8 +214,6 @@ def create_run(payload: CreateRunRequest | None = None) -> dict[str, Any]:
     req = payload or CreateRunRequest()
     conn = _get_db(app)
     try:
-        if conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 0:
-            seed_corpus(conn, data_dir=str(DATA_DIR))
         run_id = run_verification_pipeline(
             conn, scenario_id=req.scenario_id, custom_eco=req.custom_eco
         )

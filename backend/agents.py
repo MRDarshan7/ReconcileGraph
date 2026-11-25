@@ -28,7 +28,9 @@ from backend.tools import (
     UnitNormalizer,
 )
 
-SCENARIOS_PATH = Path(__file__).resolve().parent.parent / "data" / "scenarios.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
+SCENARIOS_PATH = DEFAULT_DATA_DIR / "scenarios.json"
 
 FALLBACK_BANNER = (
     "AI agents inaccessible (all configured Gemini API keys failed or unavailable) "

@@ -332,3 +332,28 @@ def test_concurrent_ablation_and_runs_no_db_lock(
         assert all(code == 200 for code in ablation_statuses)
         assert all(code == 200 for code in run_statuses)
 
+
+def test_vercel_serverless_db_path_and_entrypoint(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    import api.index as vercel_entry
+    from backend.db import get_default_db_path
+
+    assert vercel_entry.app is app
+
+    monkeypatch.delenv("DB_PATH", raising=False)
+    monkeypatch.delenv("RECONCILEGRAPH_DB", raising=False)
+    monkeypatch.setenv("VERCEL", "1")
+    assert get_default_db_path() == "/tmp/reconcilegraph.db"
+
+    temp_db = str(tmp_path / "vercel_sim.db")
+    monkeypatch.setenv("DB_PATH", temp_db)
+    assert get_default_db_path() == temp_db
+
+    # Cold-start without lifespan calling _get_db directly auto-seeds documents
+    app.state.db_path = None
+    with TestClient(app) as client:
+        docs_res = client.get("/api/documents")
+        assert docs_res.status_code == 200
+        assert len(docs_res.json()["documents"]) == 5
+

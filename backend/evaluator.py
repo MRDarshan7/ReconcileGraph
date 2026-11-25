@@ -12,7 +12,9 @@ from typing import Any
 from backend.db import get_connection, get_downstream_subgraph, init_db, seed_corpus
 from backend.tools import AliasResolver, RevisionComparator, SpanVerifier, UnitNormalizer
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DATA_DIR = str(PROJECT_ROOT / "data")
+DATA_DIR = Path(DEFAULT_DATA_DIR)
 
 _CACHE_LOCK = threading.Lock()
 _ABLATION_CACHE: dict[str, Any] | None = None

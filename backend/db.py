@@ -4,18 +4,39 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 from collections import deque
 from pathlib import Path
 from typing import Any
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DATA_DIR = str(PROJECT_ROOT / "data")
 
-def get_connection(db_path: str = "reconcilegraph.db") -> sqlite3.Connection:
+
+def get_default_db_path() -> str:
+    """Resolve writable SQLite path, using /tmp on Vercel serverless environments."""
+    return (
+        os.getenv("DB_PATH")
+        or os.getenv("RECONCILEGRAPH_DB")
+        or (
+            "/tmp/reconcilegraph.db"
+            if os.getenv("VERCEL")
+            else str(PROJECT_ROOT / "reconcilegraph.db")
+        )
+    )
+
+
+DEFAULT_DB_PATH = get_default_db_path()
+
+
+def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     """Open a SQLite connection configured with WAL mode, busy timeout, and Row factory."""
-    conn = sqlite3.connect(db_path, timeout=30.0, check_same_thread=False)
+    resolved_path = db_path or get_default_db_path()
+    conn = sqlite3.connect(resolved_path, timeout=30.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    if db_path != ":memory:":
+    if resolved_path != ":memory:":
         conn.execute("PRAGMA busy_timeout=30000;")
         conn.execute("PRAGMA journal_mode=WAL;")
     return conn
@@ -166,7 +187,7 @@ def _parse_document_metadata(
     }
 
 
-def seed_corpus(conn: sqlite3.Connection, data_dir: str = "data") -> dict[str, int]:
+def seed_corpus(conn: sqlite3.Connection, data_dir: str = DEFAULT_DATA_DIR) -> dict[str, int]:
     """Idempotently load corpus markdown files, canonical entities, and edges into SQLite."""
     base_dir = Path(data_dir)
     seed_path = base_dir / "graph_seed.json"
@@ -220,6 +241,15 @@ def seed_corpus(conn: sqlite3.Connection, data_dir: str = "data") -> dict[str, i
 
     conn.commit()
     return {"documents": doc_count, "entities": entity_count, "edges": edge_count}
+
+
+def ensure_seeded(conn: sqlite3.Connection, data_dir: str = DEFAULT_DATA_DIR) -> None:
+    """Idempotently initialize tables and seed synthetic corpus on cold-start DBs."""
+    init_db(conn)
+    doc_count = conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+    entity_count = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+    if doc_count == 0 or entity_count == 0:
+        seed_corpus(conn, data_dir=data_dir)
 
 
 def get_downstream_subgraph(
