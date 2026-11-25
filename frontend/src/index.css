@@ -109,6 +109,45 @@ body {
   animation: rgWorkspaceEnter 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Monochrome Hairline Range Slider (Chapter 0.2) */
+.rg-range-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.28);
+  outline: none;
+  cursor: pointer;
+}
+
+.rg-range-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 14px;
+  background: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0px;
+  cursor: pointer;
+}
+
+.rg-range-slider::-moz-range-thumb {
+  width: 10px;
+  height: 14px;
+  background: #ffffff;
+  border: 1px solid #000000;
+  border-radius: 0px;
+  cursor: pointer;
+}
+
+/* Monochrome Editorial Photo Grading */
+.rg-photo-backdrop {
+  filter: grayscale(100%) contrast(1.18) brightness(0.42);
+}
+
+.rg-photo-feature {
+  filter: grayscale(100%) contrast(1.18) brightness(0.72);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

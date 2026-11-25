@@ -114,12 +114,48 @@ const SHOWCASE_TABS: ShowcaseTabConfig[] = [
 ];
 
 const BENCHMARK_METRICS = [
-  { label: "Evidence traceability", rag: 0.4, graph: 0.55, ours: 1.0 },
-  { label: "Revision resolution", rag: 0.33, graph: 0.5, ours: 1.0 },
-  { label: "Conflict detection", rag: 0.0, graph: 0.25, ours: 1.0 },
-  { label: "Impact correctness", rag: 0.25, graph: 0.75, ours: 1.0 },
-  { label: "Escalation precision", rag: 0.33, graph: 0.5, ours: 1.0 },
-  { label: "Audit faithfulness", rag: 0.45, graph: 0.6, ours: 1.0 },
+  {
+    label: "Evidence traceability",
+    rag: 0.4,
+    graph: 0.55,
+    ours: 1.0,
+    note: "Naive RAG and static graphs cite coarse chunks without exact offsets; ReconcileGraph enforces SHA-256 [char_start:char_end] span verification.",
+  },
+  {
+    label: "Revision resolution",
+    rag: 0.33,
+    graph: 0.5,
+    ours: 1.0,
+    note: "Vector search retrieves superseded Rev A specs (8.5 bar) alongside Rev B; RevisionComparator filters obsolete revisions deterministically.",
+  },
+  {
+    label: "Conflict detection",
+    rag: 0.0,
+    graph: 0.25,
+    ours: 1.0,
+    note: "Baselines miss alias 'P101 rev. 2' at 175 psi vs 10.0 bar; AliasResolver + Pint normalize units to flag the +2.07 bar mismatch.",
+  },
+  {
+    label: "Impact correctness",
+    rag: 0.25,
+    graph: 0.75,
+    ours: 1.0,
+    note: "Naive RAG misses downstream SOP-7 and INSP-04 hops; bounded 3-hop BFS evaluates every rated limit against the proposed ECO pressure.",
+  },
+  {
+    label: "Escalation precision",
+    rag: 0.33,
+    graph: 0.5,
+    ours: 1.0,
+    note: "Single-pass prompts gloss over omitted vibration baselines; ReconcileGraph runs 2 bounded retries and opens MISSING_EVIDENCE explicitly.",
+  },
+  {
+    label: "Audit faithfulness",
+    rag: 0.45,
+    graph: 0.6,
+    ours: 1.0,
+    note: "Unverified summaries leak into reports without span checks; AuditorAgent rejects ungrounded claims and locks HTTP 409 sign-off.",
+  },
 ];
 
 const BENCHMARK_SUMMARY = [
@@ -139,8 +175,6 @@ const STATEMENT_WORDS =
   "Operational truth is buried across revisions, units, and safety limits. ReconcileGraph reconciles every claim before an engineer signs off.".split(
     " "
   );
-
-const CLOSING_WORDS = "Verify now with ReconcileGraph.".split(" ");
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState<boolean>(() => {
@@ -335,11 +369,43 @@ function ProductViewportContent({
   tab,
   activeCallout,
   onSelectCallout,
+  tab1Resolved,
+  onSetTab1Resolved,
+  reducedMotion,
 }: {
   tab: ShowcaseTabId;
   activeCallout: CalloutKey;
   onSelectCallout: (key: CalloutKey) => void;
+  tab1Resolved: boolean;
+  onSetTab1Resolved: (val: boolean) => void;
+  reducedMotion: boolean;
 }) {
+  const [flash409, setFlash409] = useState<boolean>(false);
+  const flashTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimerRef.current !== null) {
+        window.clearTimeout(flashTimerRef.current);
+      }
+    };
+  }, []);
+
+  const triggerPrematureSignoffTest = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelectCallout("B");
+    setFlash409(false);
+    window.requestAnimationFrame(() => {
+      setFlash409(true);
+    });
+    if (flashTimerRef.current !== null) {
+      window.clearTimeout(flashTimerRef.current);
+    }
+    flashTimerRef.current = window.setTimeout(() => {
+      setFlash409(false);
+    }, 950);
+  };
+
   const panelClass = (key: CalloutKey) =>
     `relative border p-4 transition-[opacity,border-color,background-color] duration-200 ease-out ${
       activeCallout === key
@@ -361,9 +427,15 @@ function ProductViewportContent({
           </div>
 
           <div className="mt-3 space-y-2">
-            <div className="border-l-2 border-[#D97706] bg-white/[0.04] p-2.5">
+            <div
+              className={`border-l-2 bg-white/[0.04] p-2.5 transition-[border-color] duration-200 ease-out ${
+                tab1Resolved ? "border-[#10B981]" : "border-[#D97706]"
+              }`}
+            >
               <div className="flex items-center justify-between font-mono-code text-[11px]">
-                <span className="text-[#D97706]">NEEDS DECISION</span>
+                <span className={tab1Resolved ? "text-[#10B981]" : "text-[#D97706]"}>
+                  {tab1Resolved ? "RESOLVED" : "NEEDS DECISION"}
+                </span>
                 <span className="text-neutral-400">P-101</span>
               </div>
               <div className="mt-1 text-xs font-medium text-white">
@@ -453,8 +525,18 @@ function ProductViewportContent({
               <div className="mt-1 text-[11px] text-neutral-400">SPEC-P101-B</div>
             </div>
 
-            <div className="border border-[#D97706] bg-black p-3">
-              <div className="text-[11px] text-[#D97706]">SOURCE B · LOG</div>
+            <div
+              className={`border bg-black p-3 transition-[border-color] duration-200 ease-out ${
+                tab1Resolved ? "border-[#10B981]" : "border-[#D97706]"
+              }`}
+            >
+              <div
+                className={`text-[11px] ${
+                  tab1Resolved ? "text-[#10B981]" : "text-[#D97706]"
+                }`}
+              >
+                SOURCE B · LOG
+              </div>
               <div className="mt-1.5 text-base text-white">12.07 bar</div>
               <div className="mt-1 text-[11px] text-neutral-400">raw 175 psi</div>
             </div>
@@ -462,15 +544,43 @@ function ProductViewportContent({
 
           <div className="mt-3 border border-white/15 bg-black p-3">
             <div className="flex items-center justify-between font-mono-code text-[11px]">
-              <span className="text-[#D97706]">DELTA +2.07 bar</span>
-              <span className="text-neutral-400">OPEN CONFLICT</span>
+              <span className={tab1Resolved ? "text-[#10B981]" : "text-[#D97706]"}>
+                {tab1Resolved ? "✓ RESOLVED" : "DELTA +2.07 bar"}
+              </span>
+              <span className={tab1Resolved ? "text-[#10B981]" : "text-neutral-400"}>
+                {tab1Resolved ? "RE-CHECK PASSED" : "OPEN CONFLICT"}
+              </span>
             </div>
             <div className="mt-2.5 border border-white/15 bg-[#0B0B0C] px-2.5 py-2 text-xs text-neutral-300">
               Rationale: Derate pump envelope to 11.0 bar and verify gauge PG-104.
             </div>
-            <div className="mt-2.5 bg-white px-3 py-1.5 text-center text-xs font-medium text-black">
-              Record Decision &amp; Re-Check Impact
-            </div>
+            {tab1Resolved ? (
+              <div className="mt-2.5 flex items-center justify-between gap-2 border border-[#10B981]/50 bg-[#10B981]/10 px-3 py-1.5 font-mono-code text-[11px] text-[#10B981]">
+                <span>✓ Decision recorded</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSetTab1Resolved(false);
+                  }}
+                  className="border border-white/25 bg-black px-2 py-0.5 text-white transition-[background-color,color] duration-150 ease-out hover:bg-white hover:text-black"
+                >
+                  Reset preview
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectCallout("B");
+                  onSetTab1Resolved(true);
+                }}
+                className="mt-2.5 w-full bg-white px-3 py-1.5 text-center text-xs font-medium text-black transition-[background-color] duration-150 ease-out hover:bg-neutral-200"
+              >
+                Record Decision &amp; Re-Check Impact
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -630,19 +740,39 @@ function ProductViewportContent({
         </div>
 
         <div className="mt-3 space-y-3 font-mono-code text-[12px]">
-          <div className="border border-[#DC2626] bg-black p-3.5">
-            <div className="text-[#DC2626]">HTTP 409 CONFLICT</div>
+          <motion.div
+            animate={
+              flash409 && !reducedMotion
+                ? { x: [0, -6, 6, -4, 4, 0] }
+                : { x: 0 }
+            }
+            transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+            className={`border p-3.5 transition-[border-color,background-color] duration-150 ease-out ${
+              flash409
+                ? "border-[#DC2626] bg-[#DC2626]/15"
+                : "border-[#DC2626]/80 bg-black"
+            }`}
+          >
+            <div className="flex items-center justify-between text-[#DC2626]">
+              <span>HTTP 409 // SIGN-OFF BLOCKED</span>
+              {flash409 && <span>REJECTED</span>}
+            </div>
             <div className="mt-1.5 text-neutral-300">
-              Cannot sign off ECO while 6 OPEN conflict(s) remain.
+              6 OPEN CONFLICTS remain unresolved.
             </div>
-          </div>
+          </motion.div>
 
-          <div className="border border-white/25 bg-black p-3.5">
-            <div className="text-neutral-400">AFTER ENGINEER RESOLUTION</div>
-            <div className="mt-1.5 text-white">0 OPEN CONFLICTS · UNLOCKED</div>
-            <div className="mt-3 bg-white px-3 py-1.5 text-center text-xs font-medium text-black">
-              Approve &amp; Sign-Off ECO
-            </div>
+          <button
+            type="button"
+            onClick={triggerPrematureSignoffTest}
+            className="w-full border border-white/30 bg-black px-3 py-2 text-center text-xs font-medium text-white transition-[background-color,color,border-color] duration-150 ease-out hover:border-white hover:bg-white hover:text-black"
+          >
+            Test Premature Sign-Off
+          </button>
+
+          <div className="border border-white/20 bg-black p-3">
+            <div className="text-[11px] text-neutral-400">AFTER ENGINEER RESOLUTION</div>
+            <div className="mt-1 text-white">0 OPEN CONFLICTS · UNLOCKED</div>
           </div>
         </div>
       </div>
@@ -676,48 +806,124 @@ function ProductViewportContent({
 function ChapterOneShowcase({ reducedMotion }: { reducedMotion: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inView = useInView(containerRef, { amount: 0.25 });
-  const [scanStep, setScanStep] = useState<number>(1);
-
-  useEffect(() => {
-    if (reducedMotion || !inView) return;
-    const timer = window.setInterval(() => {
-      setScanStep((prev) => (prev + 1) % 4);
-    }, 1800);
-    return () => window.clearInterval(timer);
-  }, [reducedMotion, inView]);
-
-  const docLines = [
-    { num: "013", text: "- Observed Asset Tag: P101 rev. 2", span: "[458:488]" },
-    { num: "015", text: "- Field Discharge Pressure: 175 psi", span: "[512:519]", highlight: true },
-    { num: "016", text: "- Bearing Housing Temperature: 62°C", span: "[592:596]" },
-    { num: "021", text: "- Vibration baseline omitted from entry", span: "[710:768]" },
-  ];
+  const [scanStep, setScanStep] = useState<number>(0);
+  const [autoPaused, setAutoPaused] = useState<boolean>(false);
 
   const auditRows = [
-    { id: "span_8a41c2d0", excerpt: "175 psi [512:519]", hash: "9f4b2c8e", status: "Verified", rejected: false },
-    { id: "span_3f19b04a", excerpt: "10.0 bar [418:426]", hash: "4c10e771", status: "Verified", rejected: false },
-    { id: "span_71c0e82b", excerpt: "12.0 bar MAWP [310:323]", hash: "b291fa08", status: "Verified", rejected: false },
-    { id: "span_ungrounded", excerpt: "no verbatim source slice", hash: "none", status: "Rejected", rejected: true },
+    {
+      id: "span_8a41c2d0",
+      doc: "doc4_maint_log.md",
+      lineIdx: 1,
+      span: "[512:519]",
+      excerpt: "175 psi [512:519]",
+      hash: "9f4b2c8e1d7a...a730",
+      status: "Verified",
+      rejected: false,
+    },
+    {
+      id: "span_3f19b04a",
+      doc: "doc3_pump_spec_revB.md",
+      lineIdx: 2,
+      span: "[418:426]",
+      excerpt: "10.0 bar [418:426]",
+      hash: "4c10e771f28b...91d2",
+      status: "Verified",
+      rejected: false,
+    },
+    {
+      id: "span_71c0e82b",
+      doc: "doc5_valve_sop_insp.md",
+      lineIdx: 3,
+      span: "[310:323]",
+      excerpt: "12.0 bar MAWP [310:323]",
+      hash: "b291fa08c304...e41c",
+      status: "Verified",
+      rejected: false,
+    },
+    {
+      id: "span_ungrounded",
+      doc: "unanchored_output",
+      lineIdx: -1,
+      span: "NONE",
+      excerpt: "no verbatim source slice",
+      hash: "NO MATCH IN CORPUS",
+      status: "Rejected",
+      rejected: true,
+    },
   ];
+
+  useEffect(() => {
+    if (reducedMotion || !inView || autoPaused) return;
+    const timer = window.setInterval(() => {
+      setScanStep((prev) => (prev + 1) % 3);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [reducedMotion, inView, autoPaused]);
+
+  const docLines = [
+    { num: "013", text: "- Observed Asset Tag: P101 rev. 2", span: "[458:488]", slice: null },
+    {
+      num: "015",
+      text: "- Field Discharge Pressure: ",
+      slice: "175 psi",
+      span: "[512:519]",
+    },
+    {
+      num: "016",
+      text: "- Spec Rev B Discharge Rating: ",
+      slice: "10.0 bar",
+      span: "[418:426]",
+    },
+    {
+      num: "017",
+      text: "- V-12 Check Valve Limit: ",
+      slice: "12.0 bar MAWP",
+      span: "[310:323]",
+    },
+  ];
+
+  const activeClaim = auditRows[scanStep];
+  const isRejectedSelected = activeClaim.rejected;
 
   return (
     <div ref={containerRef} className="border border-white/15 bg-[#0B0B0C]">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/12 px-5 py-3 font-mono-code text-xs text-neutral-400">
         <span>PLANT LINE-4 // SPAN EXTRACTION STREAM</span>
-        <span>doc4_maint_log.md · SHA-256 VERIFIER</span>
+        <div className="flex items-center gap-3">
+          <span>{activeClaim.doc} · SHA-256 VERIFIER</span>
+          {autoPaused && (
+            <button
+              type="button"
+              onClick={() => setAutoPaused(false)}
+              className="border border-white/25 bg-black px-2 py-0.5 text-[11px] text-white transition-[background-color,color] duration-150 ease-out hover:bg-white hover:text-black"
+            >
+              Resume scan
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 divide-y divide-white/12 lg:grid-cols-12 lg:divide-x lg:divide-y-0">
-        {/* Left: Live Scanning Document Viewer */}
+        {/* Left: Source Document Viewer */}
         <div className="p-5 sm:p-7 lg:col-span-6">
-          <div className="mb-3 flex items-center justify-between font-mono-code text-xs text-neutral-400">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 font-mono-code text-xs text-neutral-400">
             <span>SOURCE DOCUMENT</span>
-            <span>CURSOR OFFSET {docLines[scanStep].span}</span>
+            <span className={isRejectedSelected ? "text-[#DC2626]" : "text-neutral-300"}>
+              {isRejectedSelected
+                ? "OFFSET NONE"
+                : `CURSOR OFFSET ${activeClaim.span}`}
+            </span>
           </div>
+
+          {isRejectedSelected && (
+            <div className="mb-3 border border-[#DC2626] bg-[#DC2626]/10 px-3 py-2 font-mono-code text-xs text-[#DC2626]">
+              REJECTED // NO EXACT BYTE MATCH IN CORPUS
+            </div>
+          )}
 
           <div className="space-y-1.5 border border-white/12 bg-black p-4 font-mono-code text-[13px]">
             {docLines.map((line, idx) => {
-              const isScanned = idx === scanStep;
+              const isScanned = !isRejectedSelected && idx === activeClaim.lineIdx;
               return (
                 <div
                   key={line.num}
@@ -729,7 +935,18 @@ function ChapterOneShowcase({ reducedMotion }: { reducedMotion: boolean }) {
                 >
                   <span className="truncate">
                     <span className="mr-3 text-neutral-600">{line.num}</span>
-                    {line.text}
+                    <span>{line.text}</span>
+                    {line.slice && (
+                      <span
+                        className={
+                          isScanned
+                            ? "border border-white bg-white/15 px-1.5 py-0.5 text-white"
+                            : "text-neutral-400"
+                        }
+                      >
+                        {line.slice}
+                      </span>
+                    )}
                   </span>
                   <span className="shrink-0 text-[11px] text-neutral-400">{line.span}</span>
                 </div>
@@ -738,41 +955,57 @@ function ChapterOneShowcase({ reducedMotion }: { reducedMotion: boolean }) {
           </div>
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border border-white/12 bg-black px-4 py-2.5 font-mono-code text-xs">
-            <span className="text-neutral-400">SHA-256 digest check</span>
-            <span className="text-white">computed == anchored</span>
+            <span className="text-neutral-400">
+              {isRejectedSelected ? "SHA-256 verification" : "SHA-256 digest check"}
+            </span>
+            <span className={isRejectedSelected ? "text-[#DC2626]" : "text-white"}>
+              {isRejectedSelected ? "FAILED · UNGROUNDED" : activeClaim.hash}
+            </span>
           </div>
         </div>
 
-        {/* Right: Anchored Claim Ledger */}
+        {/* Right: Clickable Anchored Claim Ledger */}
         <div className="p-5 sm:p-7 lg:col-span-6">
           <div className="mb-3 flex items-center justify-between font-mono-code text-xs text-neutral-400">
-            <span>PROVENANCE LEDGER</span>
+            <span>PROVENANCE LEDGER (CLICK ROW TO INSPECT)</span>
             <span>3 VERIFIED · 1 REJECTED</span>
           </div>
 
           <div className="border border-white/12 bg-black font-mono-code text-xs">
-            {auditRows.map((row) => (
-              <div
-                key={row.id}
-                className="grid grid-cols-12 items-center gap-2 border-b border-white/10 px-4 py-3 last:border-b-0"
-              >
-                <span className="col-span-4 truncate text-neutral-300">{row.id}</span>
-                <span
-                  className={`col-span-5 truncate ${
-                    row.rejected ? "text-neutral-500 line-through" : "text-neutral-400"
+            {auditRows.map((row, idx) => {
+              const isSelected = idx === scanStep;
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => {
+                    setAutoPaused(true);
+                    setScanStep(idx);
+                  }}
+                  className={`grid w-full grid-cols-12 items-center gap-2 border-b border-white/10 px-4 py-3 text-left transition-[background-color,border-color] duration-150 ease-out last:border-b-0 ${
+                    isSelected
+                      ? "border-l-2 border-l-white bg-white/[0.06]"
+                      : "border-l-2 border-l-transparent hover:bg-white/[0.03]"
                   }`}
                 >
-                  {row.excerpt}
-                </span>
-                <span
-                  className={`col-span-3 text-right font-medium ${
-                    row.rejected ? "text-[#DC2626]" : "text-white"
-                  }`}
-                >
-                  {row.status}
-                </span>
-              </div>
-            ))}
+                  <span className="col-span-4 truncate text-neutral-200">{row.id}</span>
+                  <span
+                    className={`col-span-5 truncate ${
+                      row.rejected ? "text-neutral-500 line-through" : "text-neutral-400"
+                    }`}
+                  >
+                    {row.excerpt}
+                  </span>
+                  <span
+                    className={`col-span-3 text-right font-medium ${
+                      row.rejected ? "text-[#DC2626]" : "text-white"
+                    }`}
+                  >
+                    {row.status}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -781,30 +1014,71 @@ function ChapterOneShowcase({ reducedMotion }: { reducedMotion: boolean }) {
 }
 
 function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const inView = useInView(containerRef, { amount: 0.25 });
-  const [activeHop, setActiveHop] = useState<number>(2);
+  const [proposedBar, setProposedBar] = useState<number>(14.0);
 
-  useEffect(() => {
-    if (reducedMotion) {
-      setActiveHop(2);
-      return;
-    }
-    if (!inView) return;
-    const timer = window.setInterval(() => {
-      setActiveHop((prev) => (prev + 1) % 3);
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [reducedMotion, inView]);
+  const hop1Nodes = [
+    { y: 14, id: "V-12", sub: "Isolation Valve", rated: 12.0, path: "M210 155 L340 155 L340 54 L410 54" },
+    { y: 115, id: "PRV-04", sub: "Relief Valve", rated: 11.5, path: "M210 155 L410 155" },
+    { y: 216, id: "SOP-7", sub: "Shutdown Interlock", rated: 11.0, path: "M210 155 L340 155 L340 256 L410 256" },
+  ];
 
-  const hop1Lit = activeHop >= 1;
-  const hop2Lit = activeHop >= 2;
+  const inspRated = 12.0;
+  const inspMargin = inspRated - proposedBar;
+  const inspBreached = inspMargin < 0;
+
+  const breachedCount =
+    hop1Nodes.filter((n) => n.rated - proposedBar < 0).length + (inspBreached ? 1 : 0);
+
+  const formatMargin = (margin: number) => {
+    const rounded = Math.round(margin * 10) / 10;
+    return rounded >= 0 ? `+${rounded.toFixed(1)} bar OK` : `${rounded.toFixed(1)} bar`;
+  };
 
   return (
-    <div ref={containerRef} className="border border-white/15 bg-[#0B0B0C]">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/12 px-5 py-3 font-mono-code text-xs text-neutral-400">
-        <span>PLANT LINE-4 // BOUNDED BFS TRAVERSAL (14.0 BAR PROPOSED ECO)</span>
-        <span>HOP {activeHop} OF 2</span>
+    <div className="border border-white/15 bg-[#0B0B0C]">
+      {/* Interactive Monochrome Pressure Control Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/12 px-5 py-3.5 font-mono-code text-xs">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-neutral-400">PROPOSED P-101 PRESSURE</span>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={9.0}
+              max={15.5}
+              step={0.5}
+              value={proposedBar}
+              aria-label="Proposed P-101 discharge pressure in bar"
+              onChange={(e) => setProposedBar(Number.parseFloat(e.target.value))}
+              className="rg-range-slider w-32 sm:w-44"
+            />
+            <span className="w-16 text-right text-white">{proposedBar.toFixed(1)} bar</span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {[10.0, 11.5, 14.0].map((preset) => {
+              const active = Math.abs(proposedBar - preset) < 0.01;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => setProposedBar(preset)}
+                  className={`border px-2 py-1 text-[11px] transition-[background-color,color,border-color] duration-150 ease-out ${
+                    active
+                      ? "border-white bg-white text-black"
+                      : "border-white/25 bg-black text-neutral-300 hover:border-white"
+                  }`}
+                >
+                  {preset.toFixed(1)} bar
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <span className={breachedCount > 0 ? "text-[#DC2626]" : "text-white"}>
+          {breachedCount} {breachedCount === 1 ? "LIMIT" : "LIMITS"} EXCEEDED
+        </span>
       </div>
 
       <div className="p-4 sm:p-8">
@@ -812,37 +1086,43 @@ function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
           viewBox="0 0 920 310"
           className="h-auto w-full select-none"
           role="img"
-          aria-label="Animated Plant Line-4 blast radius topology"
+          aria-label="Interactive Plant Line-4 blast radius topology"
         >
-          {/* Base Edges */}
+          {/* Base Static Edges */}
           <g stroke="rgba(255,255,255,0.16)" strokeWidth="1.25" fill="none">
-            <path d="M210 155 L340 155 L340 54 L410 54" />
-            <path d="M210 155 L410 155" />
-            <path d="M210 155 L340 155 L340 256 L410 256" />
+            {hop1Nodes.map((n) => (
+              <path key={`base-${n.id}`} d={n.path} />
+            ))}
             <path d="M620 54 L665 54 L665 155 L700 155" />
             <path d="M620 155 L700 155" />
             <path d="M620 256 L665 256 L665 155" />
           </g>
 
-          {/* Animated Wave Edges */}
-          <g
-            stroke={hop1Lit ? "#FFFFFF" : "rgba(255,255,255,0.35)"}
-            strokeWidth="1.5"
-            fill="none"
-            className="rg-trace-line"
-          >
-            <path d="M210 155 L340 155 L340 54 L410 54" />
-            <path d="M210 155 L410 155" />
-            <path d="M210 155 L340 155 L340 256 L410 256" />
-          </g>
-          <g
-            stroke={hop2Lit ? "#DC2626" : "rgba(255,255,255,0.18)"}
-            strokeWidth="1.5"
-            fill="none"
-            className="rg-trace-line"
-          >
-            <path d="M620 155 L700 155" />
-          </g>
+          {/* Animated Blast-Radius Trace Edges on Breached Paths */}
+          {hop1Nodes.map((n) => {
+            const breached = n.rated - proposedBar < 0;
+            if (!breached) return null;
+            return (
+              <path
+                key={`trace-${n.id}`}
+                d={n.path}
+                stroke="#DC2626"
+                strokeWidth="1.5"
+                fill="none"
+                className={reducedMotion ? undefined : "rg-trace-line"}
+              />
+            );
+          })}
+
+          {inspBreached && (
+            <path
+              d="M620 155 L700 155"
+              stroke="#DC2626"
+              strokeWidth="1.5"
+              fill="none"
+              className={reducedMotion ? undefined : "rg-trace-line"}
+            />
+          )}
 
           {/* Relation Labels */}
           <text x="230" y="144" fill="#737373" fontSize="10" fontFamily="JetBrains Mono, monospace">
@@ -865,47 +1145,47 @@ function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
               P-101
             </text>
             <text x="36" y="184" fill="#D4D4D4" fontSize="12" fontFamily="JetBrains Mono, monospace">
-              ECO 14.0 bar
+              ECO {proposedBar.toFixed(1)} bar
             </text>
           </g>
 
           {/* Hop 1 Nodes */}
-          {[
-            { y: 14, id: "V-12", sub: "Isolation Valve", rated: "12.0 bar", margin: "-2.0 bar" },
-            { y: 115, id: "PRV-04", sub: "Relief Valve", rated: "11.5 bar", margin: "-2.5 bar" },
-            { y: 216, id: "SOP-7", sub: "Shutdown Interlock", rated: "11.0 bar", margin: "-3.0 bar" },
-          ].map((node) => (
-            <g key={node.id}>
-              <rect
-                x="410"
-                y={node.y}
-                width="210"
-                height="80"
-                fill="#000000"
-                stroke={hop1Lit ? "#DC2626" : "rgba(255,255,255,0.22)"}
-                strokeWidth="1.25"
-              />
-              <text x="426" y={node.y + 24} fill="#FFFFFF" fontSize="14" fontFamily="JetBrains Mono, monospace">
-                {node.id}
-              </text>
-              <text x="498" y={node.y + 24} fill="#737373" fontSize="10.5" fontFamily="Inter, sans-serif">
-                {node.sub}
-              </text>
-              <text x="426" y={node.y + 52} fill="#A3A3A3" fontSize="11.5" fontFamily="JetBrains Mono, monospace">
-                Rated {node.rated}
-              </text>
-              <text
-                x="534"
-                y={node.y + 52}
-                fill={hop1Lit ? "#DC2626" : "#525252"}
-                fontSize="11.5"
-                fontWeight="600"
-                fontFamily="JetBrains Mono, monospace"
-              >
-                {node.margin}
-              </text>
-            </g>
-          ))}
+          {hop1Nodes.map((node) => {
+            const margin = node.rated - proposedBar;
+            const breached = margin < 0;
+            return (
+              <g key={node.id}>
+                <rect
+                  x="410"
+                  y={node.y}
+                  width="210"
+                  height="80"
+                  fill="#000000"
+                  stroke={breached ? "#DC2626" : "rgba(255,255,255,0.28)"}
+                  strokeWidth="1.25"
+                />
+                <text x="426" y={node.y + 24} fill="#FFFFFF" fontSize="14" fontFamily="JetBrains Mono, monospace">
+                  {node.id}
+                </text>
+                <text x="498" y={node.y + 24} fill="#737373" fontSize="10.5" fontFamily="Inter, sans-serif">
+                  {node.sub}
+                </text>
+                <text x="426" y={node.y + 52} fill="#A3A3A3" fontSize="11.5" fontFamily="JetBrains Mono, monospace">
+                  Rated {node.rated.toFixed(1)}
+                </text>
+                <text
+                  x="530"
+                  y={node.y + 52}
+                  fill={breached ? "#DC2626" : "#D4D4D4"}
+                  fontSize="11.5"
+                  fontWeight="600"
+                  fontFamily="JetBrains Mono, monospace"
+                >
+                  {formatMargin(margin)}
+                </text>
+              </g>
+            );
+          })}
 
           {/* Hop 2: INSP-04 */}
           <g>
@@ -915,7 +1195,7 @@ function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
               width="200"
               height="100"
               fill="#000000"
-              stroke={hop2Lit ? "#DC2626" : "rgba(255,255,255,0.22)"}
+              stroke={inspBreached ? "#DC2626" : "rgba(255,255,255,0.28)"}
               strokeWidth="1.25"
             />
             <text x="716" y="132" fill="#A3A3A3" fontSize="10.5" fontFamily="JetBrains Mono, monospace">
@@ -927,12 +1207,12 @@ function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
             <text
               x="716"
               y="184"
-              fill={hop2Lit ? "#DC2626" : "#525252"}
+              fill={inspBreached ? "#DC2626" : "#D4D4D4"}
               fontSize="12"
               fontWeight="600"
               fontFamily="JetBrains Mono, monospace"
             >
-              12.0 bar · -2.0 bar
+              12.0 · {formatMargin(inspMargin)}
             </text>
           </g>
         </svg>
@@ -944,6 +1224,9 @@ function ChapterTwoTopology({ reducedMotion }: { reducedMotion: boolean }) {
 function ChapterThreeBenchmark() {
   const ref = useRef<HTMLDivElement | null>(null);
   const inView = useInView(ref, { once: true, amount: 0.25 });
+  const [selectedMetricIdx, setSelectedMetricIdx] = useState<number>(0);
+
+  const selectedMetric = BENCHMARK_METRICS[selectedMetricIdx];
 
   return (
     <div ref={ref} className="space-y-8">
@@ -977,45 +1260,64 @@ function ChapterThreeBenchmark() {
           ))}
         </div>
 
-        {/* 6 Metric Breakdown Table */}
+        {/* Interactive 6 Metric Breakdown Table */}
         <div className="divide-y divide-white/10">
-          {BENCHMARK_METRICS.map((row, idx) => (
-            <div
-              key={row.label}
-              className="grid grid-cols-1 items-center gap-4 px-5 py-4 md:grid-cols-12"
-            >
-              <div className="text-sm text-neutral-300 md:col-span-3">{row.label}</div>
+          {BENCHMARK_METRICS.map((row, idx) => {
+            const isSelected = idx === selectedMetricIdx;
+            return (
+              <button
+                key={row.label}
+                type="button"
+                onMouseEnter={() => setSelectedMetricIdx(idx)}
+                onFocus={() => setSelectedMetricIdx(idx)}
+                onClick={() => setSelectedMetricIdx(idx)}
+                className={`grid w-full grid-cols-1 items-center gap-4 border-l-2 px-5 py-4 text-left transition-[background-color,border-color] duration-150 ease-out md:grid-cols-12 ${
+                  isSelected
+                    ? "border-l-white bg-white/[0.03]"
+                    : "border-l-transparent hover:bg-white/[0.02]"
+                }`}
+              >
+                <div className="text-sm text-neutral-200 md:col-span-3">{row.label}</div>
 
-              <div className="grid grid-cols-3 gap-4 font-mono-code text-xs md:col-span-9">
-                {[
-                  { name: "RAG", val: row.rag, isOurs: false },
-                  { name: "Graph", val: row.graph, isOurs: false },
-                  { name: "ReconcileGraph", val: row.ours, isOurs: true },
-                ].map((bar) => (
-                  <div key={bar.name}>
-                    <div className="flex justify-between text-neutral-400">
-                      <span>{bar.name}</span>
-                      <span className={bar.isOurs ? "text-white" : "text-neutral-400"}>
-                        {bar.val.toFixed(2)}
-                      </span>
+                <div className="grid grid-cols-3 gap-4 font-mono-code text-xs md:col-span-9">
+                  {[
+                    { name: "RAG", val: row.rag, isOurs: false },
+                    { name: "Graph", val: row.graph, isOurs: false },
+                    { name: "ReconcileGraph", val: row.ours, isOurs: true },
+                  ].map((bar) => (
+                    <div key={bar.name}>
+                      <div className="flex justify-between text-neutral-400">
+                        <span>{bar.name}</span>
+                        <span className={bar.isOurs ? "text-white" : "text-neutral-400"}>
+                          {bar.val.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-[2px] w-full bg-white/10">
+                        <motion.div
+                          initial={{ width: "0%" }}
+                          animate={{ width: inView ? `${Math.round(bar.val * 100)}%` : "0%" }}
+                          transition={{
+                            duration: 0.7,
+                            delay: idx * 0.05,
+                            ease: [0.22, 1, 0.36, 1],
+                          }}
+                          className={bar.isOurs ? "h-full bg-white" : "h-full bg-neutral-600"}
+                        />
+                      </div>
                     </div>
-                    <div className="mt-1.5 h-[2px] w-full bg-white/10">
-                      <motion.div
-                        initial={{ width: "0%" }}
-                        animate={{ width: inView ? `${Math.round(bar.val * 100)}%` : "0%" }}
-                        transition={{
-                          duration: 0.7,
-                          delay: idx * 0.05,
-                          ease: [0.22, 1, 0.36, 1],
-                        }}
-                        className={bar.isOurs ? "h-full bg-white" : "h-full bg-neutral-600"}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Metric Engineering Rationale Footer */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/15 bg-black px-5 py-3.5 text-xs">
+          <span className="font-mono-code text-neutral-400">
+            METRIC NOTE · {selectedMetric.label.toUpperCase()}
+          </span>
+          <span className="text-neutral-200">{selectedMetric.note}</span>
         </div>
       </div>
 
@@ -1035,26 +1337,161 @@ function ChapterThreeBenchmark() {
   );
 }
 
+function ScrollExpandingInterlude({ reducedMotion }: { reducedMotion: boolean }) {
+  const ref = useRef<HTMLElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "center center"],
+  });
+  const smooth = useSpring(scrollYProgress, { stiffness: 140, damping: 26, restDelta: 0.001 });
+  const clipPath = useTransform(
+    smooth,
+    [0, 1],
+    ["inset(6% 7% 6% 7%)", "inset(0% 0% 0% 0%)"]
+  );
+  const imageScale = useTransform(smooth, [0, 1], [1.14, 1.0]);
+
+  return (
+    <section ref={ref} className="bg-black py-12 md:py-20">
+      <div className="mx-auto max-w-[1380px] px-5 sm:px-10">
+        <motion.div
+          style={reducedMotion ? undefined : { clipPath }}
+          className="relative h-[52vh] w-full overflow-hidden rounded-none border border-white/15 md:h-[68vh]"
+        >
+          <motion.img
+            src="/images/piping-valves.jpg"
+            alt="Industrial stainless steel control valves and flanged process piping"
+            style={reducedMotion ? undefined : { scale: imageScale }}
+            className="rg-photo-feature h-full w-full object-cover object-center"
+          />
+
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.34) 48%, rgba(0,0,0,0.12) 100%)",
+            }}
+          />
+
+          <div className="absolute right-6 bottom-6 left-6 z-10 max-w-2xl border-l border-white pl-4 sm:bottom-10 sm:left-10">
+            <div className="font-mono-code text-xs tracking-[0.04em] text-neutral-300">
+              PLANT LINE-4 · FEED &amp; RELIEF ARCHITECTURE
+            </div>
+            <p className="mt-2 text-base font-light leading-relaxed text-white sm:text-lg">
+              Where one unverified pressure rating cascades across valves, interlocks, and inspection certificates.
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+function ScrollChapter({
+  id,
+  reducedMotion,
+  children,
+}: {
+  id?: string;
+  reducedMotion: boolean;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "start 0.65"],
+  });
+  const smooth = useSpring(scrollYProgress, { stiffness: 150, damping: 28, restDelta: 0.001 });
+  const y = useTransform(smooth, [0, 1], [40, 0]);
+  const scale = useTransform(smooth, [0, 1], [0.97, 1]);
+  const opacity = useTransform(smooth, [0, 1], [0.35, 1]);
+
+  return (
+    <motion.div
+      id={id}
+      ref={ref}
+      style={reducedMotion ? undefined : { y, scale, opacity }}
+      className="border-t border-white/15 pt-12"
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function ArchitecturalFilmstrip({ reducedMotion }: { reducedMotion: boolean }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start end", "end start"],
+  });
+  const smooth = useSpring(scrollYProgress, { stiffness: 140, damping: 28, restDelta: 0.001 });
+  const imageY = useTransform(smooth, [0, 1], [-25, 25]);
+
+  return (
+    <div
+      ref={ref}
+      className="relative h-[28vh] w-full overflow-hidden rounded-none border border-white/15 bg-black md:h-[34vh]"
+    >
+      <motion.img
+        src="/images/control-engineering.jpg"
+        alt="Industrial power and turbine engineering hall"
+        style={reducedMotion ? undefined : { y: imageY }}
+        className="rg-photo-backdrop h-[126%] w-full -translate-y-[13%] object-cover object-center"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to right, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.75) 100%)",
+        }}
+      />
+      <div className="relative z-10 flex h-full items-end justify-between p-5 sm:p-8">
+        <div className="border-l border-white pl-4">
+          <div className="font-mono-code text-xs tracking-[0.04em] text-neutral-300">
+            LOCAL-FIRST DEPLOYMENT · ZERO EXTERNAL DATA EGRESS REQUIRED
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps) {
   const reducedMotion = usePrefersReducedMotion();
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<ShowcaseTabId>("workspace");
   const [activeCallout, setActiveCallout] = useState<CalloutKey>("A");
+  const [tab1Resolved, setTab1Resolved] = useState<boolean>(false);
 
   const triggeredRef = useRef<boolean>(false);
   const heroRef = useRef<HTMLElement | null>(null);
   const statementRef = useRef<HTMLElement | null>(null);
+  const showcaseRef = useRef<HTMLDivElement | null>(null);
   const closingRef = useRef<HTMLElement | null>(null);
 
+  // Global scroll progress hairline
+  const { scrollYProgress: globalScroll } = useScroll();
+  const globalProgress = useSpring(globalScroll, {
+    stiffness: 180,
+    damping: 28,
+    restDelta: 0.001,
+  });
+
+  // Hero dual-layer parallax
   const { scrollYProgress: heroScroll } = useScroll({
     target: heroRef,
     offset: ["start start", "end start"],
   });
   const smoothHeroScroll = useSpring(heroScroll, { stiffness: 120, damping: 24, mass: 0.3 });
+  const heroPhotoScale = useTransform(smoothHeroScroll, [0, 1], [1.03, 1.15]);
+  const heroPhotoY = useTransform(smoothHeroScroll, [0, 1], [0, 90]);
   const heroBgScale = useTransform(smoothHeroScroll, [0, 1], [1, 1.08]);
-  const heroTextY = useTransform(smoothHeroScroll, [0, 1], [0, -64]);
-  const heroTextOpacity = useTransform(smoothHeroScroll, [0, 0.72], [1, 0]);
+  const heroTextY = useTransform(smoothHeroScroll, [0, 1], [0, -55]);
+  const heroTextOpacity = useTransform(smoothHeroScroll, [0, 0.78], [1, 0.15]);
 
+  // Statement word illumination
   const { scrollYProgress: statementScroll } = useScroll({
     target: statementRef,
     offset: ["start 0.85", "end 0.42"],
@@ -1065,7 +1502,32 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
     mass: 0.35,
   });
 
-  const closingInView = useInView(closingRef, { once: true, amount: 0.3 });
+  // Band 3 showcase stage elevation
+  const { scrollYProgress: showcaseScroll } = useScroll({
+    target: showcaseRef,
+    offset: ["start end", "center center"],
+  });
+  const smoothShowcaseScroll = useSpring(showcaseScroll, {
+    stiffness: 140,
+    damping: 28,
+    restDelta: 0.001,
+  });
+  const showcaseScale = useTransform(smoothShowcaseScroll, [0, 1], [0.965, 1]);
+  const showcaseY = useTransform(smoothShowcaseScroll, [0, 1], [32, 0]);
+
+  // Band 5 closing typographic assembly
+  const { scrollYProgress: closingScroll } = useScroll({
+    target: closingRef,
+    offset: ["start end", "end end"],
+  });
+  const smoothClosingScroll = useSpring(closingScroll, {
+    stiffness: 130,
+    damping: 26,
+    restDelta: 0.001,
+  });
+  const closingLine1X = useTransform(smoothClosingScroll, [0, 1], [-24, 0]);
+  const closingLine2X = useTransform(smoothClosingScroll, [0, 1], [24, 0]);
+  const closingOpacity = useTransform(smoothClosingScroll, [0, 1], [0.2, 1]);
 
   const triggerEnter = useCallback(() => {
     if (triggeredRef.current || isExiting) return;
@@ -1163,6 +1625,13 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
               Launch workbench ↗
             </button>
           </div>
+
+          {/* Global Scroll Progress Hairline */}
+          <motion.div
+            style={reducedMotion ? undefined : { scaleX: globalProgress }}
+            aria-hidden="true"
+            className="absolute right-0 bottom-0 left-0 h-[2px] origin-left bg-white"
+          />
         </header>
 
         <main id="top">
@@ -1171,6 +1640,29 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
             ref={heroRef}
             className="relative flex min-h-screen flex-col justify-between overflow-hidden bg-black px-5 pt-28 pb-8 sm:px-10"
           >
+            {/* Atmospheric Hero Photography Layer */}
+            <motion.div
+              style={reducedMotion ? undefined : { scale: heroPhotoScale, y: heroPhotoY }}
+              className="pointer-events-none absolute inset-0 origin-center"
+            >
+              <img
+                src="/images/hero-plant.jpg"
+                alt=""
+                aria-hidden="true"
+                className="h-full w-full object-cover object-center opacity-35 grayscale contrast-125"
+              />
+            </motion.div>
+
+            {/* Radial Dark Vignette for Crisp Typography Contrast */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(circle at 38% 48%, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.78) 55%, rgba(0,0,0,0.94) 100%)",
+              }}
+            />
+
             <motion.div
               style={reducedMotion ? undefined : { scale: heroBgScale }}
               className="pointer-events-none absolute inset-0 origin-center"
@@ -1240,6 +1732,9 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
             </div>
           </section>
 
+          {/* Scroll-Expanding Piping & Valves Photo Interlude */}
+          <ScrollExpandingInterlude reducedMotion={reducedMotion} />
+
           {/* 3. Band 3: Palantir AIP Signature Interactive A / B / C Showcase */}
           <section id="platform" className="bg-white px-5 py-28 text-black sm:px-10">
             <div className="mx-auto max-w-[1380px]">
@@ -1277,8 +1772,12 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                 </span>
               </div>
 
-              {/* Large Full-Width Product Viewport */}
-              <div className="mt-8 min-h-[460px] rounded-[2px] border border-black/15 bg-[#09090B] text-white">
+              {/* Large Full-Width Product Viewport with Scroll-Scrubbed Elevation */}
+              <motion.div
+                ref={showcaseRef}
+                style={reducedMotion ? undefined : { scale: showcaseScale, y: showcaseY }}
+                className="mt-8 min-h-[460px] rounded-[2px] border border-black/15 bg-[#09090B] text-white"
+              >
                 {/* Application Window Chrome */}
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/12 bg-black px-5 py-3">
                   <div className="flex items-center gap-3">
@@ -1287,7 +1786,11 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                     </span>
                   </div>
                   <span className="font-mono-code text-xs text-neutral-400">
-                    {currentTabConfig.windowStatus}
+                    {activeTab === "workspace"
+                      ? tab1Resolved
+                        ? "ECO-01 · 5 OPEN CONFLICTS"
+                        : "ECO-01 · 6 OPEN CONFLICTS"
+                      : currentTabConfig.windowStatus}
                   </span>
                 </div>
 
@@ -1304,11 +1807,14 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                         tab={activeTab}
                         activeCallout={activeCallout}
                         onSelectCallout={setActiveCallout}
+                        tab1Resolved={tab1Resolved}
+                        onSetTab1Resolved={setTab1Resolved}
+                        reducedMotion={reducedMotion}
                       />
                     </motion.div>
                   </AnimatePresence>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Bottom 3-Column A / B / C Selector Strip */}
               <div className="mt-6 grid grid-cols-1 border-t border-b border-black/10 md:grid-cols-3 md:divide-x md:divide-black/10">
@@ -1355,7 +1861,7 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
           <section id="capabilities" className="bg-black px-5 py-32 text-white sm:px-10">
             <div className="mx-auto max-w-[1380px] space-y-32">
               {/* Chapter 0.1 */}
-              <div className="border-t border-white/15 pt-12">
+              <ScrollChapter reducedMotion={reducedMotion}>
                 <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
                   <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
                     0.1
@@ -1371,10 +1877,10 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                 </div>
 
                 <ChapterOneShowcase reducedMotion={reducedMotion} />
-              </div>
+              </ScrollChapter>
 
               {/* Chapter 0.2 */}
-              <div className="border-t border-white/15 pt-12">
+              <ScrollChapter reducedMotion={reducedMotion}>
                 <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
                   <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
                     0.2
@@ -1390,10 +1896,13 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                 </div>
 
                 <ChapterTwoTopology reducedMotion={reducedMotion} />
-              </div>
+              </ScrollChapter>
+
+              {/* Architectural Filmstrip Divider */}
+              <ArchitecturalFilmstrip reducedMotion={reducedMotion} />
 
               {/* Chapter 0.3 */}
-              <div id="benchmarks" className="border-t border-white/15 pt-12">
+              <ScrollChapter id="benchmarks" reducedMotion={reducedMotion}>
                 <div className="mb-12 grid grid-cols-1 gap-6 lg:grid-cols-12">
                   <div className="font-mono-code text-2xl font-light text-neutral-400 lg:col-span-3">
                     0.3
@@ -1409,33 +1918,34 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
                 </div>
 
                 <ChapterThreeBenchmark />
-              </div>
+              </ScrollChapter>
             </div>
           </section>
 
           {/* 5. Band 5: Monumental Kinetic Closing Band */}
-          <section ref={closingRef} className="bg-white px-5 pt-36 pb-12 text-black sm:px-10 sm:pt-44">
+          <section ref={closingRef} className="overflow-hidden bg-white px-5 pt-36 pb-12 text-black sm:px-10 sm:pt-44">
             <div className="mx-auto max-w-[1380px]">
               <h2 className="max-w-[14ch] text-[clamp(3.25rem,8vw,7.5rem)] font-light leading-[0.96] tracking-[-0.045em] text-black">
-                {CLOSING_WORDS.map((word, idx) => (
-                  <motion.span
-                    key={`${word}-${idx}`}
-                    initial={reducedMotion ? false : { opacity: 0.15, y: 18 }}
-                    animate={
-                      closingInView || reducedMotion
-                        ? { opacity: 1, y: 0 }
-                        : { opacity: 0.15, y: 18 }
-                    }
-                    transition={{
-                      duration: 0.5,
-                      delay: idx * 0.08,
-                      ease: [0.22, 1, 0.36, 1],
-                    }}
-                    className="mr-[0.24em] inline-block"
-                  >
-                    {word}
-                  </motion.span>
-                ))}
+                <motion.span
+                  style={
+                    reducedMotion
+                      ? undefined
+                      : { x: closingLine1X, opacity: closingOpacity }
+                  }
+                  className="block"
+                >
+                  Verify now
+                </motion.span>
+                <motion.span
+                  style={
+                    reducedMotion
+                      ? undefined
+                      : { x: closingLine2X, opacity: closingOpacity }
+                  }
+                  className="block"
+                >
+                  with ReconcileGraph.
+                </motion.span>
               </h2>
 
               <div className="mt-12 flex flex-wrap items-center gap-6">
