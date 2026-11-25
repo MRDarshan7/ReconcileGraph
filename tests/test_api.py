@@ -189,3 +189,22 @@ def test_full_api_workflow_signoff_lock_and_ablation(
         assert eco3_data["conflicts"] == []
         assert eco3_data["can_sign_off"] is True
 
+        # Verify custom_eco with attached/pasted spec text (psi parsed to bar)
+        custom_res = client.post(
+            "/api/runs",
+            json={
+                "scenario_id": None,
+                "custom_eco": {
+                    "target_entity_id": "P-101",
+                    "title": "Custom Spec Upload Test",
+                    "proposed_model": "Centriflo-600",
+                    "proposed_spec_text": "Replacement Pump Centriflo-600, Proposed Discharge Pressure: 203 psi",
+                },
+            },
+        )
+        assert custom_res.status_code == 200
+        custom_data = custom_res.json()
+        assert custom_data["eco"]["target_entity"] == "P-101"
+        assert custom_data["eco"]["proposed_changes"]["discharge_pressure_bar"] == 14.0
+        assert custom_data["can_sign_off"] is False
+

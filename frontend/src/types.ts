@@ -174,4 +174,13 @@ export interface AblationResponse {
   systems: AblationSystem[];
 }
 
+export interface CustomEcoInput {
+  target_entity_id: string;
+  title: string;
+  proposed_model?: string;
+  proposed_pressure_bar?: number | null;
+  proposed_spec_text: string;
+  change_request?: string;
+}
+
 export type WorkbenchTab = "review" | "graph" | "ablation";

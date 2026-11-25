@@ -1,5 +1,6 @@
 import type {
   AblationResponse,
+  CustomEcoInput,
   DocumentsResponse,
   HealthResponse,
   RunState,
@@ -45,7 +46,7 @@ export function fetchDocuments(): Promise<DocumentsResponse> {
 
 export function createRun(
   scenarioId: string | null,
-  customEco?: Record<string, unknown> | null
+  customEco?: CustomEcoInput | Record<string, unknown> | null
 ): Promise<RunState> {
   return requestJson<RunState>("/api/runs", {
     method: "POST",

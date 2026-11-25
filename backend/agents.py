@@ -62,13 +62,23 @@ class RetryExtractionOutput(BaseModel):
     note: str
 
 
+class ImpactExplanationItem(BaseModel):
+    entity: str
+    explanation: str
+
+
 class ImpactSynthesisOutput(BaseModel):
-    explanations: dict[str, str] = Field(default_factory=dict)
+    items: list[ImpactExplanationItem] = Field(default_factory=list)
 
 
-class EntailmentOutput(BaseModel):
+class EntailmentCheckItem(BaseModel):
+    finding_id: str
     supported: bool
     reason: str
+
+
+class BatchEntailmentOutput(BaseModel):
+    checks: list[EntailmentCheckItem] = Field(default_factory=list)
 
 
 def ensure_runs_table(conn: sqlite3.Connection) -> None:
@@ -99,19 +109,75 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 
+def _parse_pressure_from_spec(spec_text: str) -> float | None:
+    """Extract and normalize pressure (bar/psi/kPa/MPa) from free-form replacement spec text."""
+    if not spec_text:
+        return None
+    match = re.search(
+        r"(\d+(?:\.\d+)?)\s*(bar|psi|kpa|mpa)\b", spec_text, flags=re.IGNORECASE
+    )
+    if not match:
+        return None
+    val = float(match.group(1))
+    unit = match.group(2)
+    return float(UnitNormalizer().normalize(val, unit)["norm_value"])
+
+
 def _load_scenario(scenario_id: str | None, custom_eco: dict[str, Any] | None) -> tuple[str | None, dict[str, Any]]:
     data = json.loads(SCENARIOS_PATH.read_text(encoding="utf-8"))
     scenarios = {s["id"]: s for s in data.get("scenarios", [])}
 
     if custom_eco:
-        base = dict(scenarios.get(scenario_id or "", {}))
-        base.update(custom_eco)
-        base.setdefault("id", scenario_id or "custom_eco")
-        base.setdefault("title", "Custom Engineering Change Order")
-        base.setdefault("target_entity", "P-101")
-        base.setdefault("change_request", "Custom ECO evaluation")
-        base.setdefault("proposed_changes", {})
-        return scenario_id, base
+        base = dict(scenarios.get(scenario_id or "", {})) if scenario_id else {}
+        target_entity = str(
+            custom_eco.get("target_entity_id")
+            or custom_eco.get("target_entity")
+            or base.get("target_entity")
+            or "P-101"
+        )
+        proposed_changes: dict[str, Any] = dict(base.get("proposed_changes", {}))
+        if isinstance(custom_eco.get("proposed_changes"), dict):
+            proposed_changes.update(custom_eco["proposed_changes"])
+
+        if custom_eco.get("proposed_model"):
+            proposed_changes["model"] = str(custom_eco["proposed_model"])
+
+        raw_pressure = custom_eco.get("proposed_pressure_bar")
+        spec_text = str(custom_eco.get("proposed_spec_text") or "").strip()
+        parsed_pressure: float | None = None
+        if raw_pressure is not None and str(raw_pressure).strip() != "":
+            parsed_pressure = float(raw_pressure)
+        elif spec_text:
+            parsed_pressure = _parse_pressure_from_spec(spec_text)
+
+        if parsed_pressure is not None:
+            if target_entity == "V-12":
+                proposed_changes["mawp_bar"] = parsed_pressure
+            else:
+                proposed_changes["discharge_pressure_bar"] = parsed_pressure
+
+        eco_title = (
+            str(custom_eco.get("title") or "").strip()
+            or str(base.get("title") or "").strip()
+            or f"Custom ECO for {target_entity}"
+        )
+        change_request = (
+            str(custom_eco.get("change_request") or "").strip()
+            or spec_text
+            or str(base.get("change_request") or "").strip()
+            or f"Proposed modification to {target_entity}"
+        )
+
+        merged: dict[str, Any] = {
+            "id": scenario_id or "custom_eco",
+            "title": eco_title,
+            "target_entity": target_entity,
+            "change_request": change_request,
+            "proposed_changes": proposed_changes,
+        }
+        if spec_text:
+            merged["proposed_spec_text"] = spec_text
+        return scenario_id, merged
 
     chosen_id = scenario_id or "eco_01_pump_upgrade"
     if chosen_id not in scenarios:
@@ -388,13 +454,15 @@ def run_verification_pipeline(
     def handle_llm_failure(agent_name: str, exc: AIAgentsInaccessibleError) -> None:
         nonlocal execution_mode, fallback_notice, fallback_logged
         execution_mode = "DETERMINISTIC_FALLBACK"
-        fallback_notice = FALLBACK_BANNER
+        fallback_notice = (
+            f"AI agents inaccessible ({exc.summary_reason}) — running deterministic guardrail fallback."
+        )
         if not fallback_logged:
             logger.log(
                 agent_name=agent_name,
                 action="Activated deterministic guardrail fallback",
                 rule_id="RULE_LLM_FALLBACK",
-                detail={"reason": str(exc), "failures": exc.failures},
+                detail={"reason": str(exc), "summary": exc.summary_reason, "failures": exc.failures},
             )
             fallback_logged = True
 
@@ -413,14 +481,22 @@ def run_verification_pipeline(
         f"=== DOCUMENT {d['id']} (rev={d['rev_label']}, status={d['status']}) ===\n{d['raw_text']}"
         for d in docs
     )
+    proposed_spec_text = str(eco.get("proposed_spec_text") or "").strip()
+    attached_spec_section = (
+        f"\n\n=== ATTACHED PROPOSED REPLACEMENT SPEC ===\n{proposed_spec_text}"
+        if proposed_spec_text
+        else ""
+    )
     extraction_prompt = (
-        "Read all 5 industrial documents below and extract structured parameter assertions. "
+        "Read all 5 plant corpus documents below (note the attached ECO spec is for context; "
+        "only extract assertions with doc_id matching one of the 5 plant corpus filenames) "
+        "and extract structured parameter assertions. "
         "For each assertion provide doc_id (exact filename), entity_raw, parameter "
         "(use snake_case such as discharge_pressure, max_design_flow, flange_rating, "
         "seal_material, mawp, set_pressure, shutdown_interlock, hydrostatic_test_pressure, "
         "bearing_temperature), raw_value, raw_unit (or null), rev_label, and excerpt "
         "(MUST be copied verbatim from the document text).\n\n"
-        f"{corpus_bundle}"
+        f"{corpus_bundle}{attached_spec_section}"
     )
 
     extracted_assertions: list[ExtractedAssertion] = []
@@ -830,6 +906,79 @@ def run_verification_pipeline(
                         "claim_id": ds_claim.id if ds_claim else overload_claim.id,
                     }
                 )
+    elif target_entity == "PRV-04" and proposed_pressure is not None:
+        proposed_prv_bar = float(proposed_pressure)
+        prv_claim = next(
+            (c for c in claims if c.entity_id == "PRV-04" and c.parameter == "set_pressure"),
+            None,
+        )
+        v12_claim = next(
+            (c for c in claims if c.entity_id == "V-12" and c.parameter == "mawp" and c.status == "VERIFIED"),
+            None,
+        )
+        if proposed_prv_bar > 12.0:
+            overload_claim = ClaimRecord(
+                id=_new_id("clm"),
+                run_id=run_id,
+                entity_id="V-12",
+                parameter="proposed_prv_protection_check",
+                raw_value=str(proposed_prv_bar),
+                raw_unit="bar",
+                norm_value=proposed_prv_bar,
+                norm_unit="bar",
+                rev_label="ECO",
+                rev_status="RELEASED",
+                span_id=v12_claim.span_id if v12_claim else None,
+                confidence=1.0,
+                status="CONFLICTED",
+            )
+            _insert_claim(conn, overload_claim)
+            claims.append(overload_claim)
+            conflicts.append(
+                ConflictRecord(
+                    id=_new_id("cnf"),
+                    run_id=run_id,
+                    entity_id="V-12",
+                    parameter="mawp",
+                    claim_a_id=overload_claim.id,
+                    claim_b_id=v12_claim.id if v12_claim else overload_claim.id,
+                    conflict_type="DOWNSTREAM_OVERLOAD",
+                    status="OPEN",
+                )
+            )
+            overload_details.append(
+                {
+                    "entity": "V-12",
+                    "desc": "V-12 MAWP limit",
+                    "proposed_bar": proposed_prv_bar,
+                    "limit_bar": 12.0,
+                    "src_doc": "doc5_valve_sop_insp.md",
+                    "span_id": v12_claim.span_id if v12_claim else None,
+                    "claim_id": v12_claim.id if v12_claim else overload_claim.id,
+                }
+            )
+        else:
+            candidate_findings.append(
+                FindingRecord(
+                    id=_new_id("fnd"),
+                    run_id=run_id,
+                    severity="INFO" if proposed_prv_bar >= 11.0 else "WARNING",
+                    title=f"PRV-04 Set Pressure Change Evaluated ({proposed_prv_bar} bar)",
+                    summary=(
+                        f"Proposed PRV-04 set pressure of {proposed_prv_bar} bar protects Line-4 within V-12 MAWP (12.0 bar). "
+                        + (
+                            "Note: set pressure below 12.07 bar logged field pressure may cause nuisance relief lifting."
+                            if proposed_prv_bar < 12.07
+                            else ""
+                        )
+                    ).strip(),
+                    entity_id="PRV-04",
+                    span_id=prv_claim.span_id if prv_claim else None,
+                    claim_id=prv_claim.id if prv_claim else None,
+                    audit_status="VERIFIED",
+                    rule_id="RULE_COMPAT_CHECK",
+                )
+            )
     elif target_entity == "V-12" and proposed_changes.get("mawp_bar") is not None:
         new_mawp = float(proposed_changes["mawp_bar"])
         p101_spec = next(
@@ -883,7 +1032,7 @@ def run_verification_pipeline(
                     impact_prompt, ImpactSynthesisOutput, "ImpactAgent_Synthesis"
                 )
                 active_key_slot = meta["key_slot"]
-                synth_explanations = imp_out.explanations
+                synth_explanations = {item.entity: item.explanation for item in imp_out.items}
             except AIAgentsInaccessibleError as exc:
                 handle_llm_failure("ImpactAgent", exc)
 
@@ -935,6 +1084,8 @@ def run_verification_pipeline(
     # ------------------------------------------------------------------
     open_conflict_entities = {c.entity_id for c in conflicts if c.status == "OPEN"}
 
+    # First pass: fail-closed deterministic SHA-256 span verification
+    span_valid_pairs: list[tuple[FindingRecord, str]] = []
     for finding in candidate_findings:
         span_check = span_verifier.verify_span_by_id(finding.span_id)
         if not span_check["valid"]:
@@ -946,30 +1097,46 @@ def run_verification_pipeline(
                 rule_id="RULE_AUDIT_REJECT_UNGROUNDED",
                 detail={"finding_id": finding.id, "span_id": finding.span_id},
             )
-            _insert_finding(conn, finding)
-            continue
-
-        # Optional live Gemini entailment check
-        if execution_mode == "LIVE_GEMINI" and finding.span_id:
+        elif finding.span_id:
             span_row = conn.execute(
                 "SELECT excerpt FROM spans WHERE id = ?", (finding.span_id,)
             ).fetchone()
             if span_row:
-                try:
-                    ent_out, meta = generate_structured(
-                        (
-                            "Does the verified source excerpt support the engineering finding?\n"
-                            f"Excerpt: {span_row['excerpt']}\n"
-                            f"Finding: {finding.title} — {finding.summary}"
-                        ),
-                        EntailmentOutput,
-                        "AuditorAgent_Entailment",
-                    )
-                    active_key_slot = meta["key_slot"]
-                    if not ent_out.supported:
-                        finding.audit_status = "ESCALATED"
-                except AIAgentsInaccessibleError as exc:
-                    handle_llm_failure("AuditorAgent", exc)
+                span_valid_pairs.append((finding, span_row["excerpt"]))
+
+    # Second pass: single batched Gemini entailment check across all span-verified findings
+    entailment_map: dict[str, bool] = {}
+    if execution_mode == "LIVE_GEMINI" and span_valid_pairs:
+        try:
+            entailment_items = [
+                {
+                    "finding_id": f.id,
+                    "excerpt": excerpt,
+                    "finding": f"{f.title} — {f.summary}",
+                }
+                for f, excerpt in span_valid_pairs
+            ]
+            ent_out, meta = generate_structured(
+                (
+                    "For each item below, verify whether the verified source excerpt supports "
+                    "the engineering finding (or documents the baseline/limit being evaluated).\n"
+                    + json.dumps(entailment_items, indent=2)
+                ),
+                BatchEntailmentOutput,
+                "AuditorAgent_Entailment",
+            )
+            active_key_slot = meta["key_slot"]
+            entailment_map = {chk.finding_id: chk.supported for chk in ent_out.checks}
+        except AIAgentsInaccessibleError as exc:
+            handle_llm_failure("AuditorAgent", exc)
+
+    for finding in candidate_findings:
+        if finding.audit_status == "REJECTED":
+            _insert_finding(conn, finding)
+            continue
+
+        if finding.id in entailment_map and not entailment_map[finding.id]:
+            finding.audit_status = "ESCALATED"
 
         if finding.entity_id in open_conflict_entities and finding.severity in ("CRITICAL", "WARNING"):
             finding.audit_status = "ESCALATED"
