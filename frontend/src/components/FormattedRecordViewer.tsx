@@ -1,10 +1,14 @@
 import type { ReactNode, RefObject } from "react";
-import type { SpanRecord } from "../types";
+import type { DocumentStatus, SpanRecord } from "../types";
 
 interface FormattedRecordViewerProps {
   rawText: string;
   activeSpan: SpanRecord | null;
   highlightRef: RefObject<HTMLElement | null>;
+  docId?: string;
+  docTitle?: string;
+  revLabel?: string;
+  docStatus?: DocumentStatus;
 }
 
 interface TextLine {
@@ -81,6 +85,11 @@ function parseTableCells(line: TextLine): TableCellSpan[] {
   return cells;
 }
 
+function isNumericCell(text: string): boolean {
+  const clean = text.replaceAll("*", "").replaceAll("`", "").trim();
+  return /^\d+(\.\d+)?(\s*(bar|psi|kpa|mpa|m3\/h|°c|°f))?$/i.test(clean);
+}
+
 function renderInlineFormatted(text: string): ReactNode {
   const tokens = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return tokens.map((token, idx) => {
@@ -96,7 +105,7 @@ function renderInlineFormatted(text: string): ReactNode {
       return (
         <span
           key={idx}
-          className="mx-0.5 inline-block rounded bg-slate-100 px-1.5 py-0.5 font-mono-code text-xs font-medium text-slate-800"
+          className="mx-0.5 inline-block rounded border border-slate-200 bg-slate-100 px-1.5 py-0.2 font-mono-code text-[11px] font-medium text-slate-800"
         >
           {token.slice(1, -1)}
         </span>
@@ -104,6 +113,14 @@ function renderInlineFormatted(text: string): ReactNode {
     }
     return <span key={idx}>{token.replaceAll("**", "").replaceAll("`", "")}</span>;
   });
+}
+
+function AnchoredSpanBadge() {
+  return (
+    <span className="ml-2 inline-flex items-center rounded border border-amber-400 bg-amber-200/90 px-1.5 py-0.2 align-middle font-mono-code text-[9px] font-bold tracking-wider text-amber-950 uppercase select-none">
+      ANCHORED SPAN
+    </span>
+  );
 }
 
 function parseBlocks(lines: TextLine[]): DocBlock[] {
@@ -119,7 +136,6 @@ function parseBlocks(lines: TextLine[]): DocBlock[] {
       continue;
     }
 
-    // Headings (# or ## / ###)
     const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
     if (headingMatch) {
       blocks.push({
@@ -132,7 +148,6 @@ function parseBlocks(lines: TextLine[]): DocBlock[] {
       continue;
     }
 
-    // Pipe Tables
     if (trimmed.startsWith("|") && trimmed.includes("|", 1)) {
       const tableLines: TextLine[] = [];
       while (i < lines.length && lines[i].text.trim().startsWith("|")) {
@@ -152,7 +167,6 @@ function parseBlocks(lines: TextLine[]): DocBlock[] {
       continue;
     }
 
-    // Bullet lists (- item)
     if (/^\s*[-*]\s+/.test(line.text)) {
       const items: Array<{ line: TextLine; content: string }> = [];
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i].text)) {
@@ -164,7 +178,6 @@ function parseBlocks(lines: TextLine[]): DocBlock[] {
       continue;
     }
 
-    // Ordered lists (1. item)
     if (/^\s*\d+\.\s+/.test(line.text)) {
       const items: Array<{ line: TextLine; content: string }> = [];
       while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i].text)) {
@@ -184,12 +197,16 @@ function parseBlocks(lines: TextLine[]): DocBlock[] {
 }
 
 const HIGHLIGHT_CLASS =
-  "bg-amber-100/90 ring-2 ring-amber-400 rounded-md px-1.5 py-0.5 text-slate-950 font-medium";
+  "bg-amber-100/85 border-b-2 border-amber-500 ring-1 ring-amber-300/80 rounded-md px-2 py-0.5 text-slate-950 font-medium";
 
 export function FormattedRecordViewer({
   rawText,
   activeSpan,
   highlightRef,
+  docId,
+  docTitle,
+  revLabel,
+  docStatus,
 }: FormattedRecordViewerProps) {
   const lines = splitLinesWithOffsets(rawText);
   const blocks = parseBlocks(lines);
@@ -202,7 +219,41 @@ export function FormattedRecordViewer({
   };
 
   return (
-    <div className="space-y-3 text-sm leading-7 text-slate-700">
+    <div className="space-y-3 text-[13.5px] leading-6 text-slate-700">
+      {/* Controlled Engineering Document Metadata Strip */}
+      {(docId || docTitle) && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3.5 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {docId && (
+              <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono-code text-[10px] font-bold text-slate-700">
+                {docId}
+              </span>
+            )}
+            {docTitle && (
+              <span className="text-xs font-semibold text-slate-800">{docTitle}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 font-mono-code text-[10px] font-bold">
+            {revLabel && (
+              <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-700">
+                {revLabel}
+              </span>
+            )}
+            {docStatus && (
+              <span
+                className={`rounded px-1.5 py-0.5 ${
+                  docStatus === "SUPERSEDED"
+                    ? "bg-amber-100 text-amber-900"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {docStatus}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {blocks.map((block, blockIdx) => {
         if (block.kind === "heading") {
           const isMatched = overlapsSpan(block.line.start, block.line.end, activeSpan);
@@ -211,11 +262,12 @@ export function FormattedRecordViewer({
               <h1
                 key={blockIdx}
                 ref={isMatched ? claimHighlightRef() : undefined}
-                className={`border-b border-slate-200 pb-2 text-lg font-bold text-slate-900 ${
+                className={`font-display border-b border-slate-200 pb-2 text-lg font-bold tracking-tight text-slate-950 ${
                   isMatched ? HIGHLIGHT_CLASS : ""
                 }`}
               >
                 {renderInlineFormatted(block.content)}
+                {isMatched && <AnchoredSpanBadge />}
               </h1>
             );
           }
@@ -223,11 +275,12 @@ export function FormattedRecordViewer({
             <h2
               key={blockIdx}
               ref={isMatched ? claimHighlightRef() : undefined}
-              className={`mt-4 mb-2 border-b border-slate-200 pb-1.5 text-base font-semibold text-slate-900 ${
+              className={`font-display mt-5 mb-2 border-b border-slate-200/80 pb-1 text-sm font-bold tracking-tight text-slate-900 ${
                 isMatched ? HIGHLIGHT_CLASS : ""
               }`}
             >
               {renderInlineFormatted(block.content)}
+              {isMatched && <AnchoredSpanBadge />}
             </h2>
           );
         }
@@ -237,16 +290,16 @@ export function FormattedRecordViewer({
           return (
             <div
               key={blockIdx}
-              className="my-3 overflow-x-auto rounded-lg border border-slate-200"
+              className="my-3 overflow-x-auto rounded-lg border border-slate-200 shadow-2xs"
             >
               <table className="w-full border-collapse text-left text-xs">
                 {headerCells.length > 0 && (
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
+                    <tr className="border-b border-slate-200 bg-slate-100/80">
                       {headerCells.map((cell, cIdx) => (
                         <th
                           key={cIdx}
-                          className="px-3 py-2 font-semibold text-slate-700"
+                          className="px-3 py-2 font-mono-code text-[10px] font-bold tracking-wider text-slate-600 uppercase"
                         >
                           {renderInlineFormatted(cell.text)}
                         </th>
@@ -265,8 +318,6 @@ export function FormattedRecordViewer({
                     const overlappingCells = rowCells.filter((cell) =>
                       overlapsSpan(cell.start, cell.end, activeSpan)
                     );
-                    // If the span matches a single specific cell cleanly, highlight that cell;
-                    // otherwise highlight the entire row.
                     const highlightSingleCell =
                       rowOverlaps && overlappingCells.length === 1;
 
@@ -280,25 +331,29 @@ export function FormattedRecordViewer({
                         }
                         className={
                           rowOverlaps && !highlightSingleCell
-                            ? "bg-amber-100/90 ring-2 ring-inset ring-amber-400 text-slate-950 font-medium"
-                            : ""
+                            ? "border-b-2 border-amber-500 bg-amber-100/85 font-medium text-slate-950"
+                            : "even:bg-slate-50/50"
                         }
                       >
                         {rowCells.map((cell, cIdx) => {
                           const cellMatched =
                             highlightSingleCell &&
                             overlapsSpan(cell.start, cell.end, activeSpan);
+                          const numeric = isNumericCell(cell.text);
                           return (
                             <td
                               key={cIdx}
                               ref={cellMatched ? claimHighlightRef() : undefined}
                               className={`px-3 py-2 align-top leading-5 ${
+                                numeric ? "font-mono-code text-[11px]" : ""
+                              } ${
                                 cellMatched
-                                  ? "bg-amber-100/90 ring-2 ring-inset ring-amber-400 font-medium text-slate-950"
+                                  ? "border-b-2 border-amber-500 bg-amber-100/90 ring-1 ring-inset ring-amber-400 font-medium text-slate-950"
                                   : "text-slate-700"
                               }`}
                             >
                               {renderInlineFormatted(cell.text)}
+                              {cellMatched && <AnchoredSpanBadge />}
                             </td>
                           );
                         })}
@@ -320,12 +375,19 @@ export function FormattedRecordViewer({
                   <li
                     key={idx}
                     ref={isMatched ? claimHighlightRef() : undefined}
-                    className={`flex items-start gap-2 rounded-md px-2 py-1 text-sm leading-6 ${
+                    className={`flex items-start gap-2 rounded-md px-2 py-1 text-[13px] leading-6 ${
                       isMatched ? HIGHLIGHT_CLASS : ""
                     }`}
                   >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span className="flex-1">{renderInlineFormatted(item.content)}</span>
+                    <span
+                      className={`mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                        isMatched ? "bg-amber-600" : "bg-slate-400"
+                      }`}
+                    />
+                    <span className="flex-1">
+                      {renderInlineFormatted(item.content)}
+                      {isMatched && <AnchoredSpanBadge />}
+                    </span>
                   </li>
                 );
               })}
@@ -342,11 +404,12 @@ export function FormattedRecordViewer({
                   <li
                     key={idx}
                     ref={isMatched ? claimHighlightRef() : undefined}
-                    className={`rounded-md px-1.5 py-0.5 text-sm leading-6 ${
+                    className={`rounded-md px-2 py-0.5 text-[13px] leading-6 ${
                       isMatched ? HIGHLIGHT_CLASS : ""
                     }`}
                   >
                     {renderInlineFormatted(item.content)}
+                    {isMatched && <AnchoredSpanBadge />}
                   </li>
                 );
               })}
@@ -359,9 +422,10 @@ export function FormattedRecordViewer({
           <p
             key={blockIdx}
             ref={isMatched ? claimHighlightRef() : undefined}
-            className={`text-sm leading-7 ${isMatched ? HIGHLIGHT_CLASS : ""}`}
+            className={`text-[13.5px] leading-7 ${isMatched ? HIGHLIGHT_CLASS : ""}`}
           >
             {renderInlineFormatted(block.line.text)}
+            {isMatched && <AnchoredSpanBadge />}
           </p>
         );
       })}

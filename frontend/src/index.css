@@ -1,6 +1,29 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 
+:root {
+  /* Dark Mission-Control Tokens (Landing & Wake-up) */
+  --rg-obsidian: #07090d;
+  --rg-charcoal: #0e1219;
+  --rg-surface: #131822;
+  --rg-hairline: rgba(255, 255, 255, 0.08);
+  --rg-hairline-strong: rgba(255, 255, 255, 0.16);
+  --rg-ink: #f8fafc;
+  --rg-muted: #94a3b8;
+  --rg-cyan: #38bdf8;
+  --rg-amber: #f59e0b;
+  --rg-emerald: #10b981;
+  --rg-crimson: #ef4444;
+
+  /* Crisp Daylight Engineering Tokens (Phase 2 Workspace Ready) */
+  --rg-day-bg: #f8fafc;
+  --rg-day-surface: #ffffff;
+  --rg-day-subtle: #f1f5f9;
+  --rg-day-border: #e2e8f0;
+  --rg-day-ink: #0f172a;
+  --rg-day-muted: #475569;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
@@ -24,14 +47,42 @@
   background-color: #94a3b8;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.font-display {
+  font-family: "Plus Jakarta Sans", Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 .font-mono-code {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+/* Architectural Blueprint Dot-Grid */
+.rg-dot-grid {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.18) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.rg-grid-drift {
+  animation: rgGridDrift 36s linear infinite;
+}
+
+@keyframes rgGridDrift {
+  0% {
+    background-position: 0px 0px;
+  }
+  100% {
+    background-position: 48px 48px;
+  }
+}
+
+/* Indeterminate Progress Bar (Daylight + Dark) */
 @keyframes indeterminateSlide {
   0% {
     transform: translateX(-100%);
@@ -43,4 +94,120 @@ body {
 
 .animate-indeterminate {
   animation: indeterminateSlide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Telemetry Dual-Ring Spin */
+@keyframes rgTelemetrySpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rgTelemetrySpinReverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.rg-spin-slow {
+  animation: rgTelemetrySpin 14s linear infinite;
+}
+
+.rg-spin-reverse {
+  animation: rgTelemetrySpinReverse 9s linear infinite;
+}
+
+/* SVG Signal Packet Flow */
+@keyframes rgEdgeFlow {
+  from {
+    stroke-dashoffset: 32;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.rg-edge-flow {
+  stroke-dasharray: 4 6;
+  animation: rgEdgeFlow 1.6s linear infinite;
+}
+
+/* Conflict Node Pulse Ring */
+@keyframes rgConflictPulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+.rg-conflict-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: rgConflictPulse 2.1s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+/* Workspace Entrance */
+@keyframes rgWorkspaceEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rg-workspace-enter {
+  animation: rgWorkspaceEnter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Scroll-Reveal Utility */
+.rg-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rg-reveal-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .rg-grid-drift,
+  .animate-indeterminate,
+  .rg-spin-slow,
+  .rg-spin-reverse,
+  .rg-edge-flow,
+  .rg-conflict-pulse,
+  .rg-workspace-enter {
+    animation: none !important;
+  }
+
+  .rg-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
