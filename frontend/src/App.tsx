@@ -21,12 +21,6 @@ import type {
 
 type EntryPhase = "landing" | "morphing" | "entered";
 
-interface MorphState {
-  firstRect: DOMRect;
-  lastRect: DOMRect | null;
-  playing: boolean;
-}
-
 function selectDefaultFinding(run: RunState): { findingId: string | null; docId: string } {
   const firstEscalated =
     run.findings.find((f) => f.audit_status === "ESCALATED") ?? run.findings[0] ?? null;
@@ -41,9 +35,13 @@ function selectDefaultFinding(run: RunState): { findingId: string | null; docId:
 
 export default function App() {
   const [entryPhase, setEntryPhase] = useState<EntryPhase>("landing");
-  const [morphState, setMorphState] = useState<MorphState | null>(null);
   const [revealWorkspaceChrome, setRevealWorkspaceChrome] = useState<boolean>(false);
+
   const headerBrandRef = useRef<HTMLDivElement | null>(null);
+  const floatingBrandRef = useRef<HTMLDivElement | null>(null);
+  const firstRectRef = useRef<DOMRect | null>(null);
+  const morphStartedRef = useRef<boolean>(false);
+  const failsafeTimerRef = useRef<number | null>(null);
 
   const [runState, setRunState] = useState<RunState | null>(null);
   const [showIntake, setShowIntake] = useState<boolean>(true);
@@ -56,45 +54,68 @@ export default function App() {
   const [isSigningOff, setIsSigningOff] = useState<boolean>(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
-  const handleEnterFromLanding = useCallback((firstRect: DOMRect) => {
-    setRevealWorkspaceChrome(false);
-    setMorphState({ firstRect, lastRect: null, playing: false });
-    setEntryPhase("morphing");
+  const finishMorph = useCallback(() => {
+    if (failsafeTimerRef.current !== null) {
+      window.clearTimeout(failsafeTimerRef.current);
+      failsafeTimerRef.current = null;
+    }
+    setRevealWorkspaceChrome(true);
+    setEntryPhase("entered");
   }, []);
 
+  const handleEnterFromLanding = useCallback(
+    (firstRect: DOMRect) => {
+      firstRectRef.current = firstRect;
+      morphStartedRef.current = false;
+      setRevealWorkspaceChrome(false);
+      setEntryPhase("morphing");
+
+      if (failsafeTimerRef.current !== null) {
+        window.clearTimeout(failsafeTimerRef.current);
+      }
+      failsafeTimerRef.current = window.setTimeout(finishMorph, 700);
+    },
+    [finishMorph]
+  );
+
   useLayoutEffect(() => {
-    if (entryPhase !== "morphing" || !morphState || morphState.lastRect) {
+    if (entryPhase !== "morphing" || morphStartedRef.current) {
       return;
     }
-    const targetRect = headerBrandRef.current?.getBoundingClientRect();
-    if (!targetRect) {
-      setEntryPhase("entered");
-      setMorphState(null);
+    morphStartedRef.current = true;
+
+    const firstRect = firstRectRef.current;
+    const floatingEl = floatingBrandRef.current;
+    if (!firstRect || !floatingEl) {
+      finishMorph();
+      return;
+    }
+
+    const measured = headerBrandRef.current?.getBoundingClientRect();
+    const lastRect =
+      measured && measured.width > 0
+        ? measured
+        : { left: 24, top: 14, width: 185, height: 32 };
+
+    const dx = firstRect.left - lastRect.left;
+    const dy = firstRect.top - lastRect.top;
+    const scaleRatio = firstRect.width / lastRect.width;
+
+    floatingEl.style.left = `${lastRect.left}px`;
+    floatingEl.style.top = `${lastRect.top}px`;
+    floatingEl.style.transition = "none";
+    floatingEl.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scaleRatio})`;
+
+    // Single rAF (not cancelled in StrictMode cleanup) forces reflow and plays morph.
+    window.requestAnimationFrame(() => {
+      const el = floatingBrandRef.current;
+      if (!el) return;
+      void el.offsetWidth;
+      el.style.transition = "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)";
+      el.style.transform = "translate3d(0px, 0px, 0) scale(1)";
       setRevealWorkspaceChrome(true);
-      return;
-    }
-
-    setMorphState((prev) => (prev ? { ...prev, lastRect: targetRect } : null));
-
-    let raf2 = 0;
-    const raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => {
-        setMorphState((prev) => (prev ? { ...prev, playing: true } : null));
-        setRevealWorkspaceChrome(true);
-      });
     });
-
-    const timer = window.setTimeout(() => {
-      setEntryPhase("entered");
-      setMorphState(null);
-    }, 680);
-
-    return () => {
-      window.cancelAnimationFrame(raf1);
-      window.cancelAnimationFrame(raf2);
-      window.clearTimeout(timer);
-    };
-  }, [entryPhase, morphState]);
+  }, [entryPhase, finishMorph]);
 
   const executeRun = useCallback(
     async (
@@ -215,108 +236,99 @@ export default function App() {
     setActiveTab("review");
   };
 
-  if (entryPhase === "landing") {
-    return <LandingScreen onEnter={handleEnterFromLanding} />;
-  }
-
   const isIntakeActive = showIntake || runState === null;
-
-  // Compute FLIP transform from centered landing rect to docked top-left header rect
-  let morphTransform = "translate3d(0px, 0px, 0) scale(1, 1)";
-  if (morphState?.playing && morphState.lastRect) {
-    const dx = morphState.lastRect.left - morphState.firstRect.left;
-    const dy = morphState.lastRect.top - morphState.firstRect.top;
-    const sx = morphState.lastRect.width / morphState.firstRect.width;
-    const sy = morphState.lastRect.height / morphState.firstRect.height;
-    morphTransform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <IntakeBar
-        onNewChangeRequest={() => {
-          setErrorBanner(null);
-          setShowIntake(true);
-        }}
-        isIntakeActive={isIntakeActive}
-        isRunning={isRunning}
-        runState={runState}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onSignOff={handleSignOff}
-        isSigningOff={isSigningOff}
-        brandRef={headerBrandRef}
-        hideBrand={entryPhase === "morphing"}
-        revealChrome={entryPhase === "entered" || revealWorkspaceChrome}
-      />
+      {entryPhase !== "landing" && (
+        <div className="opacity-100">
+          <IntakeBar
+            onNewChangeRequest={() => {
+              setErrorBanner(null);
+              setShowIntake(true);
+            }}
+            isIntakeActive={isIntakeActive}
+            isRunning={isRunning}
+            runState={runState}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onSignOff={handleSignOff}
+            isSigningOff={isSigningOff}
+            brandRef={headerBrandRef}
+            hideBrand={entryPhase === "morphing"}
+            revealChrome={entryPhase === "entered" || revealWorkspaceChrome}
+          />
 
-      {isIntakeActive ? (
-        <EcoIntakeScreen
-          onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
-          isRunning={isRunning}
-          errorBanner={errorBanner}
-          revealCard={entryPhase === "entered" || revealWorkspaceChrome}
-        />
-      ) : (
-        <>
-          {errorBanner && (
-            <div className="mx-auto mt-4 max-w-[1600px] px-5">
-              <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-800">
-                {errorBanner}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "review" ? (
-            <ReviewWorkspace
-              runState={runState}
-              selectedFindingId={selectedFindingId}
-              onSelectFinding={setSelectedFindingId}
-              activeDocId={activeDocId}
-              onSelectDoc={setActiveDocId}
-              onResolveConflict={handleResolveConflict}
-              resolvingConflictId={resolvingConflictId}
-            />
-          ) : activeTab === "graph" ? (
-            <ImpactGraph
-              runState={runState}
-              onSelectEntity={handleSelectEntityFromGraph}
+          {isIntakeActive ? (
+            <EcoIntakeScreen
+              onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
+              isRunning={isRunning}
+              errorBanner={errorBanner}
+              revealCard={entryPhase === "entered" || revealWorkspaceChrome}
             />
           ) : (
-            <AblationView runState={runState} ablation={ablation} />
+            <>
+              {errorBanner && (
+                <div className="mx-auto mt-4 max-w-[1600px] px-5">
+                  <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-800">
+                    {errorBanner}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "review" ? (
+                <ReviewWorkspace
+                  runState={runState}
+                  selectedFindingId={selectedFindingId}
+                  onSelectFinding={setSelectedFindingId}
+                  activeDocId={activeDocId}
+                  onSelectDoc={setActiveDocId}
+                  onResolveConflict={handleResolveConflict}
+                  resolvingConflictId={resolvingConflictId}
+                />
+              ) : activeTab === "graph" ? (
+                <ImpactGraph
+                  runState={runState}
+                  onSelectEntity={handleSelectEntityFromGraph}
+                />
+              ) : (
+                <AblationView runState={runState} ablation={ablation} />
+              )}
+            </>
           )}
-        </>
+        </div>
       )}
 
-      {/* FLIP Shared-Element Morph Overlay */}
-      {entryPhase === "morphing" && morphState && (
-        <div className="pointer-events-none fixed inset-0 z-50">
-          <div
-            className={`absolute inset-0 bg-slate-50 transition-opacity duration-400 ease-out ${
-              morphState.playing ? "opacity-0" : "opacity-100"
-            }`}
-          />
-          <div
-            style={{
-              position: "fixed",
-              left: morphState.firstRect.left,
-              top: morphState.firstRect.top,
-              width: morphState.firstRect.width,
-              height: morphState.firstRect.height,
-              transformOrigin: "top left",
-              transform: morphTransform,
-              transition: "transform 650ms cubic-bezier(0.22, 1, 0.36, 1)",
-              willChange: "transform",
-            }}
-            className="flex items-center gap-4"
-          >
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm sm:h-16 sm:w-16">
-              <ShieldCheck className="h-8 w-8 sm:h-9 sm:w-9" />
-            </div>
-            <h1 className="text-5xl font-bold tracking-tight text-slate-900 select-none sm:text-7xl">
-              ReconcileGraph
-            </h1>
+      {entryPhase !== "entered" && (
+        <LandingScreen
+          onEnter={handleEnterFromLanding}
+          isExiting={entryPhase === "morphing"}
+        />
+      )}
+
+      {entryPhase === "morphing" && (
+        <div
+          ref={floatingBrandRef}
+          onTransitionEnd={(e) => {
+            if (e.propertyName === "transform") {
+              finishMorph();
+            }
+          }}
+          style={{
+            position: "fixed",
+            zIndex: 50,
+            transformOrigin: "top left",
+            willChange: "transform",
+            pointerEvents: "none",
+          }}
+          className="flex shrink-0 items-center gap-3"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs">
+            <ShieldCheck className="h-5 w-5" />
           </div>
+          <h1 className="text-base font-bold tracking-tight text-slate-900 select-none">
+            ReconcileGraph
+          </h1>
         </div>
       )}
     </div>

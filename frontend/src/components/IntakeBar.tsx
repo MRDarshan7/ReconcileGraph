@@ -75,7 +75,7 @@ export function IntakeBar({
             <div
               ref={brandRef}
               className={`flex shrink-0 items-center gap-3 ${
-                hideBrand ? "opacity-0" : "opacity-100"
+                hideBrand ? "invisible" : "visible"
               }`}
             >
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white shadow-xs">
