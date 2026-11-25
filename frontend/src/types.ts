@@ -4,12 +4,14 @@ export type ConflictType = "VALUE_MISMATCH" | "DOWNSTREAM_OVERLOAD" | "MISSING_E
 export type ConflictStatus = "OPEN" | "RESOLVED";
 export type FindingSeverity = "CRITICAL" | "WARNING" | "INFO";
 export type AuditStatus = "VERIFIED" | "ESCALATED" | "REJECTED";
-export type ExecutionMode = "LIVE_GEMINI" | "DETERMINISTIC_FALLBACK";
+export type ExecutionMode = "LIVE_GEMINI" | "LIVE_GROQ" | "DETERMINISTIC_FALLBACK";
 
 export interface HealthResponse {
   status: string;
   configured_gemini_keys: number;
+  configured_groq_keys?: number;
   model: string;
+  groq_model?: string;
 }
 
 export interface ScenarioPreset {

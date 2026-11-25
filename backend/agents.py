@@ -504,13 +504,19 @@ def run_verification_pipeline(
         llm_ext, meta = generate_structured(
             extraction_prompt, ExtractionOutput, "ExtractionAgent"
         )
+        execution_mode = meta["mode"]
         active_key_slot = meta["key_slot"]
         extracted_assertions = llm_ext.assertions
         logger.log(
             agent_name="ExtractionAgent",
-            action="Extracted structured assertions via Gemini",
+            action=f"Extracted structured assertions via {meta.get('provider', 'AI')}",
             rule_id="RULE_LLM_EXTRACT",
-            detail={"count": len(extracted_assertions), "key_slot": active_key_slot},
+            detail={
+                "count": len(extracted_assertions),
+                "provider": meta.get("provider", "Gemini"),
+                "key_slot": active_key_slot,
+                "model": meta.get("model"),
+            },
         )
     except AIAgentsInaccessibleError as exc:
         handle_llm_failure("ExtractionAgent", exc)
@@ -536,9 +542,9 @@ def run_verification_pipeline(
                 detail={"doc_id": item.doc_id, "excerpt": item.excerpt, "error": str(err)},
             )
 
-    # If Gemini returned valid JSON but missed essential corpus assertions, supplement deterministically
+    # If live AI returned valid JSON but missed essential corpus assertions, supplement deterministically
     # without altering execution_mode so downstream reconciliation has complete evidence.
-    if execution_mode == "LIVE_GEMINI" and len(anchored_items) < 8:
+    if execution_mode in ("LIVE_GEMINI", "LIVE_GROQ") and len(anchored_items) < 8:
         existing_keys = {(a.doc_id, a.parameter) for a, _ in anchored_items}
         for det_item in _deterministic_extract(docs):
             if (det_item.doc_id, det_item.parameter) not in existing_keys:
@@ -674,7 +680,7 @@ def run_verification_pipeline(
             f"({maint_claim.norm_value} {maint_claim.norm_unit})."
         )
 
-        if execution_mode == "LIVE_GEMINI":
+        if execution_mode in ("LIVE_GEMINI", "LIVE_GROQ"):
             try:
                 synth_out, meta = generate_structured(
                     (
@@ -686,6 +692,7 @@ def run_verification_pipeline(
                     ConflictSynthesisOutput,
                     "ReconciliationAgent_ConflictSummary",
                 )
+                execution_mode = meta["mode"]
                 active_key_slot = meta["key_slot"]
                 conflict_summary = synth_out.summary
             except AIAgentsInaccessibleError as exc:
@@ -743,7 +750,7 @@ def run_verification_pipeline(
                     "attempt": retry_idx,
                     "found": False,
                 }
-                if execution_mode == "LIVE_GEMINI" and maint_doc is not None:
+                if execution_mode in ("LIVE_GEMINI", "LIVE_GROQ") and maint_doc is not None:
                     try:
                         retry_prompt = (
                             f"Targeted re-extraction attempt #{retry_idx} for missing safety slot "
@@ -756,10 +763,13 @@ def run_verification_pipeline(
                             RetryExtractionOutput,
                             f"ReconciliationAgent_Retry_{retry_idx}",
                         )
+                        execution_mode = meta["mode"]
                         active_key_slot = meta["key_slot"]
                         found_in_retry = bool(retry_out.found and retry_out.excerpt)
                         retry_detail["found"] = found_in_retry
                         retry_detail["note"] = retry_out.note
+                        retry_detail["provider"] = meta.get("provider")
+                        retry_detail["key_slot"] = active_key_slot
                     except AIAgentsInaccessibleError as exc:
                         handle_llm_failure("ReconciliationAgent", exc)
                         retry_detail["note"] = "Deterministic targeted regex search found no numeric baseline."
@@ -1009,7 +1019,7 @@ def run_verification_pipeline(
 
     if overload_details:
         synth_explanations: dict[str, str] = {}
-        if execution_mode == "LIVE_GEMINI":
+        if execution_mode in ("LIVE_GEMINI", "LIVE_GROQ"):
             try:
                 impact_prompt = (
                     "Synthesize concise, source-cited 1-sentence engineering impact explanations "
@@ -1031,6 +1041,7 @@ def run_verification_pipeline(
                 imp_out, meta = generate_structured(
                     impact_prompt, ImpactSynthesisOutput, "ImpactAgent_Synthesis"
                 )
+                execution_mode = meta["mode"]
                 active_key_slot = meta["key_slot"]
                 synth_explanations = {item.entity: item.explanation for item in imp_out.items}
             except AIAgentsInaccessibleError as exc:
@@ -1104,9 +1115,9 @@ def run_verification_pipeline(
             if span_row:
                 span_valid_pairs.append((finding, span_row["excerpt"]))
 
-    # Second pass: single batched Gemini entailment check across all span-verified findings
+    # Second pass: single batched AI entailment check across all span-verified findings
     entailment_map: dict[str, bool] = {}
-    if execution_mode == "LIVE_GEMINI" and span_valid_pairs:
+    if execution_mode in ("LIVE_GEMINI", "LIVE_GROQ") and span_valid_pairs:
         try:
             entailment_items = [
                 {
@@ -1125,6 +1136,7 @@ def run_verification_pipeline(
                 BatchEntailmentOutput,
                 "AuditorAgent_Entailment",
             )
+            execution_mode = meta["mode"]
             active_key_slot = meta["key_slot"]
             entailment_map = {chk.finding_id: chk.supported for chk in ent_out.checks}
         except AIAgentsInaccessibleError as exc:
@@ -1155,6 +1167,8 @@ def run_verification_pipeline(
             "verified": sum(1 for f in candidate_findings if f.audit_status == "VERIFIED"),
             "escalated": sum(1 for f in candidate_findings if f.audit_status == "ESCALATED"),
             "rejected": sum(1 for f in candidate_findings if f.audit_status == "REJECTED"),
+            "execution_mode": execution_mode,
+            "key_slot": active_key_slot,
         },
     )
 

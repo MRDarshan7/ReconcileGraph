@@ -78,12 +78,15 @@ export function IntakeBar({
                   Engineering Change Verification
                 </span>
 
-                {runState && !isIntakeActive && runState.execution_mode === "LIVE_GEMINI" && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                    <Cpu className="h-3.5 w-3.5" />
-                    Live AI
-                  </span>
-                )}
+                {runState &&
+                  !isIntakeActive &&
+                  (runState.execution_mode === "LIVE_GEMINI" ||
+                    runState.execution_mode === "LIVE_GROQ") && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                      <Cpu className="h-3.5 w-3.5" />
+                      Live AI • {runState.active_key_slot ?? "Active"}
+                    </span>
+                  )}
 
                 {runState &&
                   !isIntakeActive &&

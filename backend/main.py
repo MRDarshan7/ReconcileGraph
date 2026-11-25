@@ -20,7 +20,12 @@ from backend.agents import (
 )
 from backend.db import get_connection, get_downstream_subgraph, init_db, seed_corpus
 from backend.evaluator import run_ablation_benchmark
-from backend.llm_client import get_configured_keys, get_model_name
+from backend.llm_client import (
+    get_configured_groq_keys,
+    get_configured_keys,
+    get_groq_model_name,
+    get_model_name,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -148,11 +153,14 @@ def _build_run_payload(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    keys = get_configured_keys()
+    gemini_keys = get_configured_keys()
+    groq_keys = get_configured_groq_keys()
     return {
         "status": "ok",
-        "configured_gemini_keys": len(keys),
+        "configured_gemini_keys": len(gemini_keys),
+        "configured_groq_keys": len(groq_keys),
         "model": get_model_name(),
+        "groq_model": get_groq_model_name(),
     }
 
 

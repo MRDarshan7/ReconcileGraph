@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -19,7 +21,16 @@ class _DummySchema(BaseModel):
     message: str
 
 
+def _clear_all_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GEMINI_API_KEYS", "")
+    monkeypatch.setenv("GROQ_API_KEYS", "")
+    for prefix in ("GEMINI", "GROQ"):
+        for suffix in ("_API_KEY_1", "_API_KEY_2", "_API_KEY_3", "_API_KEY"):
+            monkeypatch.delenv(f"{prefix}{suffix}", raising=False)
+
+
 def test_llm_client_failover_key1_429_to_key2(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_all_api_keys(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEYS", "key-one,key-two,key-three")
     monkeypatch.setenv("GEMINI_MODEL", "gemini-2.5-flash")
 
@@ -44,15 +55,89 @@ def test_llm_client_failover_key1_429_to_key2(monkeypatch: pytest.MonkeyPatch) -
     parsed, meta = llm_client.generate_structured("test prompt", _DummySchema, "TestStage")
     assert parsed.message == "ok from key 2"
     assert meta["mode"] == "LIVE_GEMINI"
-    assert meta["key_slot"] == "Key #2"
+    assert meta["key_slot"] == "Gemini Key #2"
     assert meta["attempts"] == 2
     assert calls == ["key-one", "key-two"]
+
+
+def test_gemini_timeout_fails_over_immediately_to_groq_key1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_all_api_keys(monkeypatch)
+    monkeypatch.setenv("GEMINI_API_KEYS", "gem-1,gem-2,gem-3")
+    monkeypatch.setenv("GROQ_API_KEYS", "groq-1,groq-2,groq-3")
+
+    gemini_calls: list[str] = []
+    groq_calls: list[str] = []
+
+    class _TimeoutModels:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+        def generate_content(self, **kwargs):
+            gemini_calls.append(self.api_key)
+            raise httpx.ReadTimeout("timed out after 8.0s")
+
+    class _TimeoutClient:
+        def __init__(self, api_key: str) -> None:
+            self.models = _TimeoutModels(api_key)
+
+    def _fake_groq_post(url: str, headers: dict, json: dict, timeout: float):
+        auth = headers["Authorization"].removeprefix("Bearer ")
+        groq_calls.append(auth)
+        assert timeout == llm_client.GROQ_TIMEOUT_SECONDS
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", url),
+            json={"choices": [{"message": {"content": '{"message": "ok from groq 1"}'}}]},
+        )
+
+    monkeypatch.setattr(llm_client.genai, "Client", _TimeoutClient)
+    monkeypatch.setattr(llm_client.httpx, "post", _fake_groq_post)
+
+    parsed, meta = llm_client.generate_structured("test prompt", _DummySchema, "TimeoutStage")
+    assert parsed.message == "ok from groq 1"
+    assert meta["mode"] == "LIVE_GROQ"
+    assert meta["provider"] == "Groq"
+    assert meta["key_slot"] == "Groq Key #1"
+    # Timeout on Gemini Key #1 should jump straight to Groq without trying gem-2 / gem-3
+    assert gemini_calls == ["gem-1"]
+    assert groq_calls == ["groq-1"]
+
+
+def test_groq_key1_429_fails_over_to_groq_key2(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_all_api_keys(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEYS", "groq-1,groq-2,groq-3")
+
+    groq_calls: list[str] = []
+
+    def _fake_groq_post(url: str, headers: dict, json: dict, timeout: float):
+        auth = headers["Authorization"].removeprefix("Bearer ")
+        groq_calls.append(auth)
+        req = httpx.Request("POST", url)
+        if auth == "groq-1":
+            return httpx.Response(429, request=req, json={"error": "rate limit"})
+        return httpx.Response(
+            200,
+            request=req,
+            json={"choices": [{"message": {"content": '{"message": "ok from groq 2"}'}}]},
+        )
+
+    monkeypatch.setattr(llm_client.httpx, "post", _fake_groq_post)
+
+    parsed, meta = llm_client.generate_structured("test prompt", _DummySchema, "GroqFailoverStage")
+    assert parsed.message == "ok from groq 2"
+    assert meta["mode"] == "LIVE_GROQ"
+    assert meta["key_slot"] == "Groq Key #2"
+    assert groq_calls == ["groq-1", "groq-2"]
 
 
 def test_all_three_keys_fail_triggers_deterministic_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
+    _clear_all_api_keys(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEYS", "k1,k2,k3")
+    monkeypatch.setenv("GROQ_API_KEYS", "g1,g2,g3")
 
     class _AlwaysFailModels:
         def __init__(self, api_key: str) -> None:
@@ -65,13 +150,18 @@ def test_all_three_keys_fail_triggers_deterministic_fallback(
         def __init__(self, api_key: str) -> None:
             self.models = _AlwaysFailModels(api_key)
 
+    def _always_fail_groq(url: str, headers: dict, json: dict, timeout: float):
+        return httpx.Response(429, request=httpx.Request("POST", url), json={"error": "rate limit"})
+
     monkeypatch.setattr(llm_client.genai, "Client", _AlwaysFailClient)
+    monkeypatch.setattr(llm_client.httpx, "post", _always_fail_groq)
 
     with pytest.raises(llm_client.AIAgentsInaccessibleError) as exc_info:
         llm_client.generate_structured("test", _DummySchema, "FailStage")
-    assert "Key #1 failed" in str(exc_info.value)
-    assert "Key #2 failed" in str(exc_info.value)
-    assert "Key #3 failed" in str(exc_info.value)
+    assert "Gemini Key #1 failed" in str(exc_info.value)
+    assert "Gemini Key #3 failed" in str(exc_info.value)
+    assert "Groq Key #1 failed" in str(exc_info.value)
+    assert "Groq Key #3 failed" in str(exc_info.value)
 
     # Verify full pipeline handles AIAgentsInaccessibleError with explicit fallback notice
     db_file = str(tmp_path / "fallback_test.db")
@@ -91,11 +181,7 @@ def test_full_api_workflow_signoff_lock_and_ablation(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     # Force deterministic fallback cleanly without external network calls
-    monkeypatch.setenv("GEMINI_API_KEYS", "")
-    monkeypatch.delenv("GEMINI_API_KEY_1", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY_2", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY_3", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    _clear_all_api_keys(monkeypatch)
 
     app.state.db_path = str(tmp_path / "api_test.db")
 
@@ -213,11 +299,7 @@ def test_full_api_workflow_signoff_lock_and_ablation(
 def test_concurrent_ablation_and_runs_no_db_lock(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
-    monkeypatch.setenv("GEMINI_API_KEYS", "")
-    monkeypatch.delenv("GEMINI_API_KEY_1", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY_2", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY_3", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    _clear_all_api_keys(monkeypatch)
 
     app.state.db_path = str(tmp_path / "concurrent_test.db")
 
