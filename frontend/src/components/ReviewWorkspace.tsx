@@ -149,11 +149,18 @@ export function ReviewWorkspace({
     }
   }, [activeDocSpan]);
 
-  const sortedFindings = useMemo(() => {
-    const order = { ESCALATED: 0, VERIFIED: 1, REJECTED: 2 };
-    return [...runState.findings].sort(
-      (a, b) => order[a.audit_status] - order[b.audit_status]
+  const findingGroups = useMemo(() => {
+    const needsDecision = runState.findings.filter(
+      (f) => f.audit_status === "ESCALATED" && !f.is_resolved
     );
+    const resolved = runState.findings.filter(
+      (f) => Boolean(f.is_resolved) && f.audit_status !== "REJECTED"
+    );
+    const verified = runState.findings.filter(
+      (f) => f.audit_status === "VERIFIED" && !f.is_resolved
+    );
+    const rejected = runState.findings.filter((f) => f.audit_status === "REJECTED");
+    return { needsDecision, resolved, verified, rejected };
   }, [runState.findings]);
 
   const handleFindingClick = (finding: FindingRecord) => {
@@ -221,62 +228,121 @@ export function ReviewWorkspace({
             Verification Findings
           </h2>
           <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono-code text-[11px] font-semibold text-slate-600">
-            {sortedFindings.length}
+            {runState.findings.length}
           </span>
         </div>
 
-        <div className="flex-1 space-y-2.5 overflow-y-auto p-3.5">
-          {sortedFindings.map((finding) => {
-            const isSelected = selectedFinding?.id === finding.id;
-            const isRejected = finding.audit_status === "REJECTED";
-            const isEscalated = finding.audit_status === "ESCALATED";
-
+        <div className="flex-1 space-y-4 overflow-y-auto p-3.5">
+          {[
+            {
+              key: "needsDecision",
+              label: "Needs Decision",
+              items: findingGroups.needsDecision,
+              variant: "escalated" as const,
+            },
+            {
+              key: "resolved",
+              label: "Resolved",
+              items: findingGroups.resolved,
+              variant: "resolved" as const,
+            },
+            {
+              key: "verified",
+              label: "Verified",
+              items: findingGroups.verified,
+              variant: "verified" as const,
+            },
+            {
+              key: "rejected",
+              label: "Blocked: Ungrounded",
+              items: findingGroups.rejected,
+              variant: "rejected" as const,
+            },
+          ].map((group) => {
+            if (group.items.length === 0) return null;
             return (
-              <button
-                key={finding.id}
-                type="button"
-                onClick={() => handleFindingClick(finding)}
-                className={`w-full rounded-xl border p-3.5 text-left transition ${
-                  isSelected
-                    ? "border-slate-900 bg-slate-50/70 ring-1 ring-slate-900"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  {isEscalated ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                      <AlertCircle className="h-3 w-3" />
-                      Needs Decision
-                    </span>
-                  ) : isRejected ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
-                      <ShieldX className="h-3 w-3" />
-                      Blocked: Ungrounded
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Verified
-                    </span>
-                  )}
-
-                  <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono-code text-[11px] font-semibold text-slate-700">
-                    {finding.entity_id}
+              <div key={group.key} className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                    {group.label}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono-code text-[10px] font-semibold text-slate-600">
+                    {group.items.length}
                   </span>
                 </div>
 
-                <div
-                  className={`mt-2 text-xs font-bold ${
-                    isRejected ? "text-slate-400 line-through" : "text-slate-900"
-                  }`}
-                >
-                  {formatDocLabel(finding.title)}
-                </div>
+                <div className="space-y-2">
+                  {group.items.map((finding) => {
+                    const isSelected = selectedFinding?.id === finding.id;
+                    const isRejected = group.variant === "rejected";
+                    const isResolved = group.variant === "resolved";
+                    const isEscalated = group.variant === "escalated";
 
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
-                  {formatDocLabel(finding.summary)}
-                </p>
-              </button>
+                    return (
+                      <button
+                        key={finding.id}
+                        type="button"
+                        onClick={() => handleFindingClick(finding)}
+                        className={`w-full rounded-xl border p-3.5 text-left transition ${
+                          isResolved
+                            ? isSelected
+                              ? "border-emerald-700 bg-emerald-50 ring-1 ring-emerald-700"
+                              : "border-emerald-300 bg-emerald-50/70 hover:bg-emerald-50"
+                            : isSelected
+                              ? "border-slate-900 bg-slate-50/70 ring-1 ring-slate-900"
+                              : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          {isEscalated ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                              <AlertCircle className="h-3 w-3" />
+                              Needs Decision
+                            </span>
+                          ) : isResolved ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Resolved
+                            </span>
+                          ) : isRejected ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-800">
+                              <ShieldX className="h-3 w-3" />
+                              Blocked: Ungrounded
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Verified
+                            </span>
+                          )}
+
+                          <span className="rounded-md bg-white/80 px-2 py-0.5 font-mono-code text-[11px] font-semibold text-slate-700">
+                            {finding.entity_id}
+                          </span>
+                        </div>
+
+                        <div
+                          className={`mt-2 text-xs font-bold ${
+                            isRejected ? "text-slate-400 line-through" : "text-slate-900"
+                          }`}
+                        >
+                          {formatDocLabel(finding.title)}
+                        </div>
+
+                        {isResolved && finding.resolution_choice ? (
+                          <div className="mt-1 text-[11px] font-semibold text-emerald-800">
+                            Decision: {finding.resolution_choice}
+                          </div>
+                        ) : (
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-600">
+                            {formatDocLabel(finding.summary)}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>

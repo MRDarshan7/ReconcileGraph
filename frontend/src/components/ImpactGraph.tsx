@@ -57,7 +57,13 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           (c) => c.entity_id === ent.canonical_id && c.status === "OPEN"
         );
         const hasEscalatedFinding = runState.findings.some(
-          (f) => f.entity_id === ent.canonical_id && f.audit_status === "ESCALATED"
+          (f) =>
+            f.entity_id === ent.canonical_id &&
+            f.audit_status === "ESCALATED" &&
+            !f.is_resolved
+        );
+        const hasResolvedFinding = runState.findings.some(
+          (f) => f.entity_id === ent.canonical_id && Boolean(f.is_resolved)
         );
         const hasVerifiedFinding = runState.findings.some(
           (f) => f.entity_id === ent.canonical_id && f.audit_status === "VERIFIED"
@@ -71,6 +77,10 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           cardBorder = "border-rose-400 bg-rose-50/70 text-rose-950";
           pillStyle = "bg-rose-100 text-rose-800";
           statusLabel = "Conflict / Overload";
+        } else if (hasResolvedFinding) {
+          cardBorder = "border-emerald-400 bg-emerald-50/70 text-emerald-950";
+          pillStyle = "bg-emerald-100 text-emerald-800";
+          statusLabel = "Resolved / Verified";
         } else if (hasVerifiedFinding) {
           cardBorder = "border-emerald-400 bg-emerald-50/70 text-emerald-950";
           pillStyle = "bg-emerald-100 text-emerald-800";

@@ -92,6 +92,8 @@ export interface FindingRecord {
   claim_id: string | null;
   audit_status: AuditStatus;
   rule_id: string;
+  is_resolved?: boolean;
+  resolution_choice?: string | null;
 }
 
 export interface AuditEvent {

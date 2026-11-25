@@ -101,6 +101,27 @@ export default function App() {
         reviewerRationale
       );
       setRunState(updated);
+
+      const currentStillPending = updated.findings.some(
+        (f) =>
+          f.id === selectedFindingId &&
+          f.audit_status === "ESCALATED" &&
+          !f.is_resolved
+      );
+      if (!currentStillPending) {
+        const nextPending = updated.findings.find(
+          (f) => f.audit_status === "ESCALATED" && !f.is_resolved
+        );
+        if (nextPending) {
+          setSelectedFindingId(nextPending.id);
+          const span = nextPending.span_id
+            ? updated.spans.find((s) => s.id === nextPending.span_id)
+            : undefined;
+          if (span) {
+            setActiveDocId(span.doc_id);
+          }
+        }
+      }
     } catch (err) {
       setErrorBanner(err instanceof Error ? err.message : "Conflict resolution failed.");
     } finally {

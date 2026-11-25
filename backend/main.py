@@ -98,6 +98,35 @@ def _build_run_payload(conn: sqlite3.Connection, run_id: str) -> dict[str, Any]:
         dict(r)
         for r in conn.execute("SELECT * FROM findings WHERE run_id = ?", (run_id,)).fetchall()
     ]
+    for f in findings:
+        linked_conflict = None
+        if f.get("claim_id"):
+            linked_conflict = next(
+                (
+                    c
+                    for c in conflicts
+                    if c["claim_a_id"] == f["claim_id"] or c["claim_b_id"] == f["claim_id"]
+                ),
+                None,
+            )
+        if linked_conflict is None:
+            entity_conflicts = [c for c in conflicts if c["entity_id"] == f["entity_id"]]
+            if len(entity_conflicts) == 1:
+                linked_conflict = entity_conflicts[0]
+            elif entity_conflicts and f.get("severity") in ("CRITICAL", "WARNING"):
+                resolved_cs = [c for c in entity_conflicts if c["status"] == "RESOLVED"]
+                if len(resolved_cs) == len(entity_conflicts):
+                    linked_conflict = resolved_cs[-1]
+
+        is_resolved = bool(
+            linked_conflict is not None
+            and linked_conflict["status"] == "RESOLVED"
+            and f.get("audit_status") != "REJECTED"
+        )
+        f["is_resolved"] = is_resolved
+        f["resolution_choice"] = (
+            linked_conflict["resolution_choice"] if is_resolved and linked_conflict else None
+        )
     audit_events = []
     for r in conn.execute(
         "SELECT * FROM audit_events WHERE run_id = ? ORDER BY step_order ASC", (run_id,)

@@ -223,7 +223,7 @@ def test_full_api_workflow_signoff_lock_and_ablation(
         locked_signoff = client.post(f"/api/runs/{run_id}/sign-off", json={"sign_off_note": "premature"})
         assert locked_signoff.status_code == 409
 
-        # Resolve all OPEN conflicts
+        # Resolve all OPEN conflicts and verify each linked finding immediately moves out of ESCALATED
         open_conflicts = [c for c in run_data["conflicts"] if c["status"] == "OPEN"]
         assert len(open_conflicts) >= 5
         for cnf in open_conflicts:
@@ -236,6 +236,18 @@ def test_full_api_workflow_signoff_lock_and_ablation(
             )
             assert res.status_code == 200
             run_data = res.json()
+            linked = [
+                f
+                for f in run_data["findings"]
+                if f.get("claim_id") in (cnf["claim_a_id"], cnf["claim_b_id"])
+            ]
+            assert linked, f"Expected linked finding for conflict {cnf['id']}"
+            assert all(f["audit_status"] == "VERIFIED" for f in linked)
+            assert all(f["is_resolved"] is True for f in linked)
+            assert all(
+                f["resolution_choice"] == "Accept engineering mitigation and re-test"
+                for f in linked
+            )
 
         assert run_data["can_sign_off"] is True
         assert any(evt["action"] == "decision re-checks impact" for evt in run_data["audit_events"])

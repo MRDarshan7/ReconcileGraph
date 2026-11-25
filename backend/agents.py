@@ -1218,13 +1218,35 @@ def resolve_conflict_and_recheck(
     )
 
     entity_id = conflict_row["entity_id"]
+    claim_ids = [cid for cid in (conflict_row["claim_a_id"], conflict_row["claim_b_id"]) if cid]
     remaining_open_for_entity = conn.execute(
         "SELECT COUNT(*) FROM conflicts WHERE run_id = ? AND entity_id = ? AND status = 'OPEN'",
         (run_id, entity_id),
     ).fetchone()[0]
 
     rechecked_finding_ids: list[str] = []
-    if remaining_open_for_entity == 0:
+    if claim_ids:
+        placeholders = ",".join("?" for _ in claim_ids)
+        escalated_rows = conn.execute(
+            f"""
+            SELECT id FROM findings
+            WHERE run_id = ? AND audit_status = 'ESCALATED'
+              AND (claim_id IN ({placeholders}) OR (entity_id = ? AND ? = 0))
+            """,
+            (run_id, *claim_ids, entity_id, int(remaining_open_for_entity)),
+        ).fetchall()
+        rechecked_finding_ids = [r["id"] for r in escalated_rows]
+        if rechecked_finding_ids:
+            id_placeholders = ",".join("?" for _ in rechecked_finding_ids)
+            conn.execute(
+                f"""
+                UPDATE findings
+                SET audit_status = 'VERIFIED', rule_id = 'RULE_AUDIT_PASS'
+                WHERE run_id = ? AND id IN ({id_placeholders})
+                """,
+                (run_id, *rechecked_finding_ids),
+            )
+    elif remaining_open_for_entity == 0:
         escalated_rows = conn.execute(
             "SELECT id FROM findings WHERE run_id = ? AND entity_id = ? AND audit_status = 'ESCALATED'",
             (run_id, entity_id),
