@@ -3,6 +3,7 @@ import {
   Background,
   Controls,
   MarkerType,
+  Position,
   ReactFlow,
   type Edge,
   type Node,
@@ -14,8 +15,19 @@ interface ImpactGraphProps {
   onSelectEntity: (entityId: string) => void;
 }
 
+const FIXED_POSITIONS: Record<string, { x: number; y: number }> = {
+  "P-101": { x: 40, y: 220 },
+  "PRV-04": { x: 400, y: 40 },
+  "SOP-7": { x: 400, y: 220 },
+  "V-12": { x: 400, y: 400 },
+  "INSP-04": { x: 760, y: 220 },
+};
+
 export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
   const { nodes, edges } = useMemo(() => {
+    const targetEntity = runState.eco.target_entity ?? "P-101";
+    const useFixedPumpLayout = targetEntity === "P-101";
+
     const hopBuckets = new Map<number, typeof runState.subgraph.nodes>();
     for (const n of runState.subgraph.nodes) {
       const bucket = hopBuckets.get(n.hop) ?? [];
@@ -36,35 +48,57 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           (f) => f.entity_id === ent.canonical_id && f.audit_status === "VERIFIED"
         );
 
-        let paletteClass = "border-slate-300 bg-white text-slate-900";
-        let statusLabel = "INFO";
+        let cardBorder = "border-slate-300 bg-white text-slate-900";
+        let pillStyle = "bg-slate-100 text-slate-700";
+        let statusLabel = "Informational";
+
         if (hasOpenConflict || hasEscalatedFinding) {
-          paletteClass = "border-rose-400 bg-rose-50 text-rose-950";
-          statusLabel = "CONFLICT / OVERLOAD";
+          cardBorder = "border-rose-400 bg-rose-50/70 text-rose-950";
+          pillStyle = "bg-rose-100 text-rose-800";
+          statusLabel = "Conflict / Overload";
         } else if (hasVerifiedFinding) {
-          paletteClass = "border-emerald-400 bg-emerald-50 text-emerald-950";
-          statusLabel = "VERIFIED";
+          cardBorder = "border-emerald-400 bg-emerald-50/70 text-emerald-950";
+          pillStyle = "bg-emerald-100 text-emerald-800";
+          statusLabel = "Verified";
         }
 
-        const yOffset = (idx - (bucket.length - 1) / 2) * 140 + 220;
+        const fallbackPos = {
+          x: hop * 360 + 40,
+          y: (idx - (bucket.length - 1) / 2) * 180 + 220,
+        };
+        const position =
+          useFixedPumpLayout && FIXED_POSITIONS[ent.canonical_id]
+            ? FIXED_POSITIONS[ent.canonical_id]
+            : fallbackPos;
+
         rfNodes.push({
           id: ent.canonical_id,
-          position: { x: hop * 290 + 40, y: yOffset },
+          position,
+          sourcePosition: Position.Right,
+          targetPosition: Position.Left,
           data: {
             label: (
-              <div className={`min-w-[190px] rounded-md border-2 px-3 py-2 text-left shadow-xs ${paletteClass}`}>
+              <div className={`w-60 rounded-xl border-2 p-4 text-left shadow-sm ${cardBorder}`}>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono-code text-xs font-bold">
+                  <span className="font-mono-code text-sm font-bold">
                     {ent.canonical_id}
                   </span>
-                  <span className="rounded bg-slate-900/10 px-1.5 py-0.5 font-mono-code text-[10px] font-semibold">
+                  <span className="rounded-full bg-slate-900/10 px-2 py-0.5 font-mono-code text-[10px] font-semibold">
                     Hop {ent.hop}
                   </span>
                 </div>
-                <div className="mt-1 text-xs font-medium">{ent.name}</div>
-                <div className="mt-1.5 flex items-center justify-between text-[10px] font-semibold opacity-80">
-                  <span>{ent.entity_type}</span>
-                  <span>{statusLabel}</span>
+
+                <div className="mt-1.5 text-xs font-medium text-slate-700">
+                  {ent.name}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase">
+                    {ent.entity_type.replaceAll("_", " ")}
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${pillStyle}`}>
+                    {statusLabel}
+                  </span>
                 </div>
               </div>
             ),
@@ -73,6 +107,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
             background: "transparent",
             border: "none",
             padding: 0,
+            width: 240,
           },
         });
       });
@@ -82,16 +117,19 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
       id: e.id,
       source: e.source_id,
       target: e.target_id,
+      type: "smoothstep",
       label: e.relation,
       animated: runState.conflicts.some(
         (c) => c.entity_id === e.target_id && c.status === "OPEN"
       ),
-      style: { stroke: "#475569", strokeWidth: 1.8 },
+      style: { stroke: "#64748b", strokeWidth: 2 },
       labelStyle: { fontSize: 10, fontWeight: 700, fill: "#334155" },
-      labelBgStyle: { fill: "#f8fafc", fillOpacity: 0.9 },
+      labelBgStyle: { fill: "#ffffff", fillOpacity: 0.95 },
+      labelBgPadding: [6, 4],
+      labelBgBorderRadius: 6,
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: "#475569",
+        color: "#64748b",
       },
     }));
 
@@ -99,22 +137,22 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
   }, [runState]);
 
   return (
-    <div className="mx-auto max-w-[1600px] p-4">
-      <div className="rounded-lg border border-slate-200 bg-white shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+    <div className="mx-auto max-w-[1600px] p-5">
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">
-              Deterministic Downstream Blast-Radius Graph
+            <h2 className="text-sm font-bold text-slate-900">
+              Downstream Blast-Radius Dependency Graph
             </h2>
-            <p className="text-xs text-slate-500">
-              BFS traversal from target entity{" "}
+            <p className="mt-0.5 text-xs text-slate-500">
+              BFS propagation from target{" "}
               <span className="font-mono-code font-semibold text-slate-700">
                 {runState.eco.target_entity ?? "P-101"}
               </span>{" "}
-              (click any node to inspect its findings in the 3-pane workspace)
+              — click any node to open its evidence in Review Workspace
             </p>
           </div>
-          <div className="flex items-center gap-3 text-[11px] font-semibold">
+          <div className="flex items-center gap-4 text-xs font-semibold">
             <span className="inline-flex items-center gap-1.5 text-rose-700">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> Conflict / Overload
             </span>
@@ -127,14 +165,15 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           </div>
         </div>
 
-        <div className="h-[560px] w-full bg-slate-50">
+        <div className="h-[580px] w-full bg-slate-50">
           <ReactFlow
             nodes={nodes}
             edges={edges}
             fitView
+            fitViewOptions={{ padding: 0.25 }}
             onNodeClick={(_evt, node) => onSelectEntity(node.id)}
           >
-            <Background color="#cbd5e1" gap={20} />
+            <Background color="#cbd5e1" gap={24} />
             <Controls />
           </ReactFlow>
         </div>

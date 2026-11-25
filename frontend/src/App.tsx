@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createRun,
   fetchAblation,
-  fetchScenarios,
   resolveConflict,
   signOffRun,
 } from "./api";
@@ -15,7 +14,6 @@ import type {
   AblationResponse,
   CustomEcoInput,
   RunState,
-  ScenarioPreset,
   WorkbenchTab,
 } from "./types";
 
@@ -32,9 +30,6 @@ function selectDefaultFinding(run: RunState): { findingId: string | null; docId:
 }
 
 export default function App() {
-  const [scenarios, setScenarios] = useState<ScenarioPreset[]>([]);
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>("eco_01_pump_upgrade");
-  const [customPressure, setCustomPressure] = useState<string>("");
   const [runState, setRunState] = useState<RunState | null>(null);
   const [showIntake, setShowIntake] = useState<boolean>(true);
   const [ablation, setAblation] = useState<AblationResponse | null>(null);
@@ -61,7 +56,6 @@ export default function App() {
         setActiveDocId(defaults.docId);
         setShowIntake(false);
         setActiveTab("review");
-        if (scenarioId) setSelectedScenarioId(scenarioId);
       } catch (err) {
         setErrorBanner(err instanceof Error ? err.message : "Verification run failed.");
       } finally {
@@ -71,31 +65,14 @@ export default function App() {
     []
   );
 
-  const handleHeaderQuickRun = useCallback(async () => {
-    let customEco: Record<string, unknown> | null = null;
-    const parsedPressure = Number.parseFloat(customPressure);
-    if (customPressure.trim() !== "" && Number.isFinite(parsedPressure)) {
-      const preset = scenarios.find((s) => s.id === selectedScenarioId);
-      customEco = {
-        target_entity_id: preset?.target_entity ?? "P-101",
-        title: `${preset?.title ?? selectedScenarioId} (Custom ${parsedPressure} bar)`,
-        proposed_pressure_bar: parsedPressure,
-      };
-    }
-    await executeRun(selectedScenarioId, customEco);
-  }, [customPressure, executeRun, scenarios, selectedScenarioId]);
-
   useEffect(() => {
     let cancelled = false;
     async function bootstrap() {
       try {
-        const [scenRes, ablRes] = await Promise.all([
-          fetchScenarios(),
-          fetchAblation(),
-        ]);
-        if (cancelled) return;
-        setScenarios(scenRes.scenarios);
-        setAblation(ablRes);
+        const ablRes = await fetchAblation();
+        if (!cancelled) {
+          setAblation(ablRes);
+        }
       } catch (err) {
         if (!cancelled) {
           setErrorBanner(err instanceof Error ? err.message : "Failed to initialize workbench.");
@@ -167,12 +144,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <IntakeBar
-        scenarios={scenarios}
-        selectedScenarioId={selectedScenarioId}
-        onScenarioChange={setSelectedScenarioId}
-        customPressure={customPressure}
-        onCustomPressureChange={setCustomPressure}
-        onRunVerification={handleHeaderQuickRun}
         onNewChangeRequest={() => {
           setErrorBanner(null);
           setShowIntake(true);
@@ -195,8 +166,8 @@ export default function App() {
       ) : (
         <>
           {errorBanner && (
-            <div className="mx-auto mt-3 max-w-[1600px] px-4">
-              <div className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">
+            <div className="mx-auto mt-4 max-w-[1600px] px-5">
+              <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-800">
                 {errorBanner}
               </div>
             </div>
