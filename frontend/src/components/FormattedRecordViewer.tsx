@@ -9,6 +9,7 @@ interface FormattedRecordViewerProps {
   docTitle?: string;
   revLabel?: string;
   docStatus?: DocumentStatus;
+  compactHeader?: boolean;
 }
 
 interface TextLine {
@@ -90,14 +91,36 @@ function isNumericCell(text: string): boolean {
   return /^\d+(\.\d+)?(\s*(bar|psi|kpa|mpa|m3\/h|°c|°f))?$/i.test(clean);
 }
 
+function renderPlainTextSegment(segment: string, keyPrefix: string): ReactNode {
+  const colonMatch = segment.match(/^([A-Z][A-Za-z0-9\s/()-]{1,32}:)\s+(.+)$/);
+  if (colonMatch) {
+    return (
+      <span key={keyPrefix}>
+        <span className="text-[#737373]">{colonMatch[1]}</span>{" "}
+        <span className="text-[#0A0A0A]">{colonMatch[2]}</span>
+      </span>
+    );
+  }
+  return <span key={keyPrefix}>{segment}</span>;
+}
+
 function renderInlineFormatted(text: string): ReactNode {
   const tokens = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return tokens.map((token, idx) => {
     if (!token) return null;
     if (token.startsWith("**") && token.endsWith("**") && token.length > 4) {
+      const inner = token.slice(2, -2);
+      const isFieldLabel = inner.trim().endsWith(":");
       return (
-        <strong key={idx} className="font-semibold text-[#0A0A0A]">
-          {token.slice(2, -2)}
+        <strong
+          key={idx}
+          className={
+            isFieldLabel
+              ? "font-medium text-[#737373]"
+              : "font-semibold text-[#0A0A0A]"
+          }
+        >
+          {inner}
         </strong>
       );
     }
@@ -111,7 +134,10 @@ function renderInlineFormatted(text: string): ReactNode {
         </span>
       );
     }
-    return <span key={idx}>{token.replaceAll("**", "").replaceAll("`", "")}</span>;
+    return renderPlainTextSegment(
+      token.replaceAll("**", "").replaceAll("`", ""),
+      String(idx)
+    );
   });
 }
 
@@ -207,6 +233,7 @@ export function FormattedRecordViewer({
   docTitle,
   revLabel,
   docStatus,
+  compactHeader = false,
 }: FormattedRecordViewerProps) {
   const lines = splitLinesWithOffsets(rawText);
   const blocks = parseBlocks(lines);
@@ -219,29 +246,17 @@ export function FormattedRecordViewer({
   };
 
   return (
-    <div className="space-y-3 text-[13.5px] leading-6 text-[#333333]">
-      {/* Controlled Engineering Document Metadata Strip */}
-      {(docId || docTitle) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[4px] border border-[#E5E5E5] bg-[#FAFAFB] px-3.5 py-2">
-          <div className="flex flex-wrap items-center gap-2">
-            {docId && (
-              <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-2 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
-                {docId}
-              </span>
-            )}
-            {docTitle && (
-              <span className="text-xs font-medium text-[#0A0A0A]">{docTitle}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 font-mono-code text-[10px] font-medium">
-            {revLabel && (
-              <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-1.5 py-0.5 text-[#0A0A0A]">
-                {revLabel}
-              </span>
-            )}
+    <div className="space-y-3.5 text-[13.5px] leading-relaxed text-[#333333]">
+      {/* Header Row: Full Strip for Plant Records, Clean Compact Header for Drawer */}
+      {(docId || docTitle) &&
+        (compactHeader ? (
+          <div className="mb-3 flex items-center justify-between gap-3 border-b border-[#E5E5E5] pb-2.5">
+            <span className="text-xs font-medium text-[#0A0A0A]">
+              {docTitle ?? docId}
+            </span>
             {docStatus && (
               <span
-                className={`rounded-[2px] border px-1.5 py-0.5 ${
+                className={`rounded-[2px] border px-1.5 py-0.5 font-mono-code text-[10px] font-medium ${
                   docStatus === "SUPERSEDED"
                     ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
                     : "border-[#059669]/35 bg-[#059669]/10 text-[#059669]"
@@ -251,8 +266,38 @@ export function FormattedRecordViewer({
               </span>
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[4px] border border-[#E5E5E5] bg-[#FAFAFB] px-3.5 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {docId && (
+                <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-2 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
+                  {docId}
+                </span>
+              )}
+              {docTitle && (
+                <span className="text-xs font-medium text-[#0A0A0A]">{docTitle}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 font-mono-code text-[10px] font-medium">
+              {revLabel && (
+                <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-1.5 py-0.5 text-[#0A0A0A]">
+                  {revLabel}
+                </span>
+              )}
+              {docStatus && (
+                <span
+                  className={`rounded-[2px] border px-1.5 py-0.5 ${
+                    docStatus === "SUPERSEDED"
+                      ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
+                      : "border-[#059669]/35 bg-[#059669]/10 text-[#059669]"
+                  }`}
+                >
+                  {docStatus}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
 
       {blocks.map((block, blockIdx) => {
         if (block.kind === "heading") {
@@ -275,7 +320,7 @@ export function FormattedRecordViewer({
             <h2
               key={blockIdx}
               ref={isMatched ? claimHighlightRef() : undefined}
-              className={`mt-5 mb-2 border-b border-[#E5E5E5] pb-1 text-sm font-medium tracking-[-0.01em] text-[#0A0A0A] ${
+              className={`mt-5 mb-2 border-b border-[#F0F0F0] pb-1 text-sm font-medium tracking-[-0.01em] text-[#0A0A0A] ${
                 isMatched ? HIGHLIGHT_CLASS : ""
               }`}
             >
@@ -290,7 +335,7 @@ export function FormattedRecordViewer({
           return (
             <div
               key={blockIdx}
-              className="my-3 overflow-x-auto rounded-[2px] border border-[#E5E5E5]"
+              className="my-3.5 overflow-x-auto rounded-[2px] border border-[#E5E5E5]"
             >
               <table className="w-full border-collapse text-left text-xs">
                 {headerCells.length > 0 && (
@@ -349,7 +394,7 @@ export function FormattedRecordViewer({
                               } ${
                                 cellMatched
                                   ? "border-b-2 border-[#D97706] bg-[#FEF3C7] ring-1 ring-inset ring-[#D97706] font-medium text-[#0A0A0A]"
-                                  : "text-[#333333]"
+                                  : "text-[#0A0A0A]"
                               }`}
                             >
                               {renderInlineFormatted(cell.text)}
@@ -368,23 +413,23 @@ export function FormattedRecordViewer({
 
         if (block.kind === "ul") {
           return (
-            <ul key={blockIdx} className="my-2 space-y-1.5">
+            <ul key={blockIdx} className="my-2.5 space-y-2">
               {block.items.map((item, idx) => {
                 const isMatched = overlapsSpan(item.line.start, item.line.end, activeSpan);
                 return (
                   <li
                     key={idx}
                     ref={isMatched ? claimHighlightRef() : undefined}
-                    className={`flex items-start gap-2 rounded-[2px] px-2 py-1 text-[13px] leading-6 ${
+                    className={`flex items-start gap-2.5 rounded-[2px] px-2 py-1 text-[13px] leading-relaxed ${
                       isMatched ? HIGHLIGHT_CLASS : ""
                     }`}
                   >
                     <span
-                      className={`mt-2.5 h-1.5 w-1.5 shrink-0 rounded-[1px] ${
-                        isMatched ? "bg-[#D97706]" : "bg-[#999999]"
+                      className={`mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                        isMatched ? "bg-[#D97706]" : "bg-[#B4B4BC]"
                       }`}
                     />
-                    <span className="flex-1">
+                    <span className="flex-1 text-[#0A0A0A]">
                       {renderInlineFormatted(item.content)}
                       {isMatched && <AnchoredSpanBadge />}
                     </span>
@@ -397,14 +442,14 @@ export function FormattedRecordViewer({
 
         if (block.kind === "ol") {
           return (
-            <ol key={blockIdx} className="my-2 list-decimal space-y-1.5 pl-6">
+            <ol key={blockIdx} className="my-2.5 list-decimal space-y-2 pl-6">
               {block.items.map((item, idx) => {
                 const isMatched = overlapsSpan(item.line.start, item.line.end, activeSpan);
                 return (
                   <li
                     key={idx}
                     ref={isMatched ? claimHighlightRef() : undefined}
-                    className={`rounded-[2px] px-2 py-0.5 text-[13px] leading-6 ${
+                    className={`rounded-[2px] px-2 py-0.5 text-[13px] leading-relaxed text-[#0A0A0A] ${
                       isMatched ? HIGHLIGHT_CLASS : ""
                     }`}
                   >
@@ -422,7 +467,7 @@ export function FormattedRecordViewer({
           <p
             key={blockIdx}
             ref={isMatched ? claimHighlightRef() : undefined}
-            className={`text-[13.5px] leading-7 ${isMatched ? HIGHLIGHT_CLASS : ""}`}
+            className={`text-[13.5px] leading-relaxed ${isMatched ? HIGHLIGHT_CLASS : ""}`}
           >
             {renderInlineFormatted(block.line.text)}
             {isMatched && <AnchoredSpanBadge />}

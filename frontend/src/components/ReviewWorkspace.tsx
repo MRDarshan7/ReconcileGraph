@@ -44,12 +44,24 @@ const CONFLICT_TYPE_LABELS: Record<ConflictType, string> = {
   MISSING_EVIDENCE: "Missing safety evidence",
 };
 
+const COMPACT_DOC_TABS: Record<string, string> = {
+  "doc1_bom_revB.md": "BOM (Rev B)",
+  "doc2_pump_spec_revA.md": "Spec Rev A",
+  "doc3_pump_spec_revB.md": "Spec Rev B",
+  "doc4_maint_log.md": "Maint Log",
+  "doc5_valve_sop_insp.md": "Compliance",
+};
+
 const QUICK_RESOLUTION_PRESETS = [
   "Accept Spec Rev B (10.0 bar)",
   "Accept Field Log (12.07 bar)",
   "Upgrade Downstream Valve V-12 & Reset PRV-04",
   "Log Vibration Baseline Before Startup",
 ];
+
+function formatCompactTabLabel(docId: string): string {
+  return COMPACT_DOC_TABS[docId] ?? formatDocLabel(docId);
+}
 
 function findLinkedConflict(
   finding: FindingRecord,
@@ -88,6 +100,37 @@ function formatRawLine(claim: ClaimRecord | null): string | null {
 function sentenceCase(val: string): string {
   if (!val) return "";
   return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+}
+
+function formatCleanFindingTitle(rawTitle: string): string {
+  const docFormatted = formatDocLabel(rawTitle);
+  return docFormatted
+    .replace(
+      /\s*\((?:Maintenance Log|Compliance Record|Plant Line-4 BOM|Pump P-101 Datasheet)\s*\([^)]+\)\)\s*$/i,
+      ""
+    )
+    .replace(/\s*\(([^()]+)\(([^()]+)\)\)/g, " ($1· $2)")
+    .trim();
+}
+
+function getDefaultPreset(
+  conflict: ConflictRecord,
+  finding: FindingRecord | null
+): string {
+  const titleLower = (finding?.title ?? "").toLowerCase();
+  if (
+    conflict.conflict_type === "MISSING_EVIDENCE" ||
+    titleLower.includes("vibration")
+  ) {
+    return QUICK_RESOLUTION_PRESETS[3];
+  }
+  if (
+    conflict.conflict_type === "DOWNSTREAM_OVERLOAD" ||
+    ["V-12", "PRV-04", "SOP-7", "INSP-04"].includes(conflict.entity_id)
+  ) {
+    return QUICK_RESOLUTION_PRESETS[2];
+  }
+  return QUICK_RESOLUTION_PRESETS[0];
 }
 
 export function ReviewWorkspace({
@@ -205,12 +248,13 @@ export function ReviewWorkspace({
   };
 
   const handleConfirmResolution = async (conflict: ConflictRecord) => {
-    const choice = choiceByConflict[conflict.id] || QUICK_RESOLUTION_PRESETS[0];
+    const choice =
+      choiceByConflict[conflict.id] ?? getDefaultPreset(conflict, selectedFinding);
     const rationale = (rationaleByConflict[conflict.id] || "").trim();
     if (!rationale) {
       setFormErrorByConflict((prev) => ({
         ...prev,
-        [conflict.id]: "Please enter an engineering rationale before confirming.",
+        [conflict.id]: "Engineering rationale is required for audit trail.",
       }));
       return;
     }
@@ -300,12 +344,12 @@ export function ReviewWorkspace({
     const escalated = verificationChecks.filter((c) => c.state === "escalated").length;
     const failed = verificationChecks.filter((c) => c.state === "failed").length;
     if (failed > 0) {
-      return `${failed} check${failed === 1 ? "" : "s"} blocked ungrounded claim · Click to inspect`;
+      return `${failed} check${failed === 1 ? "" : "s"} blocked ungrounded assertion`;
     }
     if (escalated > 0) {
-      return `${passed} deterministic checks passed, ${escalated} escalated · Click to inspect`;
+      return `${passed} deterministic checks passed, ${escalated} escalated`;
     }
-    return `${passed} deterministic checks passed · Click to inspect`;
+    return `${passed} deterministic checks passed`;
   }, [verificationChecks]);
 
   const focusDotColor = !selectedFinding
@@ -326,9 +370,26 @@ export function ReviewWorkspace({
       ? "Resolved"
       : sentenceCase(selectedFinding.audit_status);
 
+  const isBlockedFinding = selectedFinding?.audit_status === "REJECTED";
+  const isMissingEvidenceConflict =
+    !isBlockedFinding && selectedConflict?.conflict_type === "MISSING_EVIDENCE";
+  const showDualComparison =
+    !isBlockedFinding &&
+    Boolean(selectedConflict && competingClaimA && !isMissingEvidenceConflict);
+
+  const missingEvidenceDocLabel = (() => {
+    if (competingClaimA?.span_id && spanMap.get(competingClaimA.span_id)) {
+      return formatDocLabel(spanMap.get(competingClaimA.span_id)!.doc_id);
+    }
+    if (selectedSpan) {
+      return formatDocLabel(selectedSpan.doc_id);
+    }
+    return "Maintenance Log (MNT-2026-09)";
+  })();
+
   return (
     <div className="relative flex flex-col bg-white lg:h-[calc(100vh-52px)] lg:flex-row lg:overflow-hidden">
-      {/* LEFT PANE (310px): Compact Linear Triage Queue */}
+      {/* LEFT PANE (310px): Ultra-Clean Single-Line Linear Queue */}
       <aside className="flex w-full shrink-0 flex-col border-b border-[#E5E5E5] bg-[#FAFAFB] lg:w-[310px] lg:border-r lg:border-b-0">
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#E5E5E5] px-3.5">
           <span className="text-xs font-medium text-[#0A0A0A]">Findings</span>
@@ -337,7 +398,7 @@ export function ReviewWorkspace({
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-2">
+        <div className="flex-1 space-y-5 overflow-y-auto py-3">
           {[
             {
               key: "needsDecision",
@@ -359,7 +420,7 @@ export function ReviewWorkspace({
             },
             {
               key: "rejected",
-              label: "Blocked: ungrounded",
+              label: "Blocked",
               items: findingGroups.rejected,
               variant: "rejected" as const,
             },
@@ -368,13 +429,13 @@ export function ReviewWorkspace({
             const isCollapsed = Boolean(collapsedGroups[group.key]);
 
             return (
-              <div key={group.key} className="mb-2">
+              <div key={group.key}>
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.key)}
-                  className="flex w-full items-center justify-between px-3.5 py-1.5 text-left transition-[background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-black/[0.03]"
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[11px] text-[#737373] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-black/[0.03] hover:text-[#0A0A0A]"
                 >
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#666666]">
+                  <span className="inline-flex items-center gap-1.5 font-medium">
                     {isCollapsed ? (
                       <ChevronRight className="h-3 w-3 text-[#999999]" />
                     ) : (
@@ -382,13 +443,13 @@ export function ReviewWorkspace({
                     )}
                     <span>{group.label}</span>
                   </span>
-                  <span className="font-mono-code text-[10px] text-[#737373]">
+                  <span className="font-mono-code text-[10px] text-[#999999]">
                     {group.items.length}
                   </span>
                 </button>
 
                 {!isCollapsed && (
-                  <div className="divide-y divide-[#F0F0F0]">
+                  <div className="mt-1 divide-y divide-[#F0F0F0]">
                     {group.items.map((finding) => {
                       const isSelected = selectedFinding?.id === finding.id;
                       const isRejected = group.variant === "rejected";
@@ -404,55 +465,37 @@ export function ReviewWorkspace({
                               ? "bg-[#059669]"
                               : "bg-[#94A3B8]";
 
-                      const previewText =
-                        isResolved && finding.resolution_choice
-                          ? `Resolved · ${finding.resolution_choice}`
-                          : isRejected
-                            ? "Blocked · Missing SHA-256 span"
-                            : formatDocLabel(finding.summary);
-
                       return (
                         <button
                           key={finding.id}
                           type="button"
                           onClick={() => handleFindingClick(finding)}
-                          className={`w-full border-l-2 px-3.5 py-2.5 text-left transition-[background-color,border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                          className={`flex w-full items-center justify-between gap-2 border-l-2 px-3 py-2 text-left transition-[background-color,border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                             isSelected
                               ? "border-l-[#0A0A0A] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
                               : "border-l-transparent bg-transparent hover:bg-black/[0.025]"
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span
-                                className={`h-[6px] w-[6px] shrink-0 rounded-full ${statusDotClass}`}
-                              />
-                              <span
-                                className={`truncate text-[13px] font-medium ${
-                                  isRejected
-                                    ? "text-[#999999] line-through decoration-[#DC2626]/60"
-                                    : "text-[#0A0A0A]"
-                                }`}
-                              >
-                                {formatDocLabel(finding.title)}
-                              </span>
-                            </div>
-                            <span className="shrink-0 font-mono-code text-[11px] text-[#737373]">
-                              {finding.entity_id}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <span
+                              className={`h-[6px] w-[6px] shrink-0 rounded-full ${statusDotClass}`}
+                            />
+                            <span
+                              className={`truncate text-[13px] ${
+                                isSelected ? "font-medium" : "font-normal"
+                              } ${
+                                isRejected
+                                  ? "text-[#999999] line-through decoration-[#DC2626]/60"
+                                  : "text-[#0A0A0A]"
+                              }`}
+                            >
+                              {formatDocLabel(finding.title)}
                             </span>
-                          </div>
+                          </span>
 
-                          <div
-                            className={`mt-0.5 truncate pl-[14px] text-[12px] ${
-                              isResolved
-                                ? "text-[#059669]"
-                                : isRejected
-                                  ? "text-[#DC2626]"
-                                  : "text-[#737373]"
-                            }`}
-                          >
-                            {previewText}
-                          </div>
+                          <span className="shrink-0 font-mono-code text-[11px] text-[#737373]">
+                            {finding.entity_id}
+                          </span>
                         </button>
                       );
                     })}
@@ -464,7 +507,7 @@ export function ReviewWorkspace({
         </div>
       </aside>
 
-      {/* MAIN FOCUS PANE: Calm Evidence & Decision Stage */}
+      {/* MAIN FOCUS PANE: Unified Linear Issue / Attio Record View */}
       <main className="min-w-0 flex-1 overflow-y-auto bg-white">
         <div className="mx-auto max-w-3xl px-6 py-8 lg:px-10">
           {selectedFinding ? (
@@ -476,203 +519,284 @@ export function ReviewWorkspace({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
               >
-                {/* Calm Inline Metadata Strip */}
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#666666]">
-                  <span className="inline-flex items-center gap-1.5 font-medium text-[#0A0A0A]">
-                    <span className={`h-[6px] w-[6px] rounded-full ${focusDotColor}`} />
-                    {sentenceCase(selectedFinding.severity)}
-                  </span>
-                  <span className="text-[#CCCCCC]">·</span>
-                  <span>{focusStatusLabel}</span>
-                  <span className="text-[#CCCCCC]">·</span>
-                  <span className="font-mono-code text-[11px] text-[#0A0A0A]">
-                    {selectedFinding.entity_id}
-                  </span>
-                  {selectedEntityNode && (
-                    <>
-                      <span className="text-[#CCCCCC]">·</span>
-                      <span>{selectedEntityNode.name}</span>
-                    </>
-                  )}
+                {/* 1. Clean Editorial Header */}
+                <div className="pb-6">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-[#666666]">
+                    <span className="inline-flex items-center gap-1.5 font-medium text-[#0A0A0A]">
+                      <span className={`h-[6px] w-[6px] rounded-full ${focusDotColor}`} />
+                      {sentenceCase(selectedFinding.severity)}
+                    </span>
+                    <span className="text-[#CCCCCC]">·</span>
+                    <span>{focusStatusLabel}</span>
+                    <span className="text-[#CCCCCC]">·</span>
+                    <span className="font-mono-code text-[11px] text-[#0A0A0A]">
+                      {selectedFinding.entity_id}
+                    </span>
+                    {selectedEntityNode && (
+                      <>
+                        <span className="text-[#CCCCCC]">·</span>
+                        <span>{selectedEntityNode.name}</span>
+                      </>
+                    )}
+                  </div>
+
+                  <h1 className="mt-3 text-[20px] leading-snug font-medium tracking-[-0.02em] text-[#0A0A0A]">
+                    {formatCleanFindingTitle(selectedFinding.title)}
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-[#525252]">
+                    {formatDocLabel(selectedFinding.summary)}
+                  </p>
                 </div>
 
-                {/* Finding Title & Summary */}
-                <h1 className="mt-3 text-xl font-medium tracking-[-0.02em] text-[#0A0A0A]">
-                  {formatDocLabel(selectedFinding.title)}
-                </h1>
-                <p className="mt-2 text-sm leading-relaxed text-[#666666]">
-                  {formatDocLabel(selectedFinding.summary)}
-                </p>
-
-                {/* Single-Row Sleek Source Provenance Bar */}
-                <div className="mt-6 flex items-center justify-between gap-3 rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-3.5 py-2.5">
-                  {selectedSpan ? (
-                    <>
-                      <div className="flex min-w-0 items-center gap-2 font-mono-code text-[11px]">
-                        <FileText className="h-3.5 w-3.5 shrink-0 text-[#666666]" />
-                        <span className="truncate font-medium text-[#0A0A0A]">
-                          {formatDocLabel(selectedSpan.doc_id)}
-                        </span>
-                        <span className="shrink-0 text-[#CCCCCC]">·</span>
-                        <span className="shrink-0 text-[#0A0A0A]">
-                          [{selectedSpan.char_start}:{selectedSpan.char_end}]
-                        </span>
-                        <span className="hidden shrink-0 items-center gap-1 text-[10px] text-[#059669] sm:inline-flex">
-                          <ShieldCheck className="h-3 w-3" />
-                          SHA-256 verified
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openSourceDrawer(selectedSpan.doc_id)}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-1.5 text-xs font-medium text-[#0A0A0A] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A]"
-                      >
-                        <span>Inspect source record</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex min-w-0 items-center gap-2 font-mono-code text-[11px] text-[#DC2626]">
-                        <ShieldX className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">
-                          Ungrounded finding · No verified SHA-256 byte offset
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => openSourceDrawer(activeDoc?.id)}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-1.5 text-xs font-medium text-[#0A0A0A] transition-[border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A]"
-                      >
-                        <span>Browse plant records</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Softened Side-by-Side Specification Comparison */}
-                {selectedConflict && competingClaimA ? (
-                  <div className="mt-6 rounded-[2px] border border-[#E5E5E5] bg-white">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E5E5] bg-[#FAFAFB] px-4 py-2.5">
-                      <span className="text-xs font-medium text-[#0A0A0A]">
-                        Side-by-side specification comparison
-                      </span>
-                      {numericDelta && (
-                        <span className="rounded-[2px] border border-[#D97706]/30 bg-[#D97706]/10 px-2 py-0.5 font-mono-code text-[11px] font-medium text-[#D97706]">
-                          {numericDelta}
-                        </span>
+                {/* 2. Unified Attio-Style Key-Value Property Ledger */}
+                <div className="divide-y divide-[#F4F4F5] border-y border-[#EFEFEF]">
+                  {/* Row 1: Source Record */}
+                  <div className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-center sm:gap-4">
+                    <span className="w-36 shrink-0 text-xs text-[#737373]">
+                      Source record
+                    </span>
+                    <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                      {selectedSpan ? (
+                        <>
+                          <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
+                            <FileText className="h-3.5 w-3.5 shrink-0 text-[#737373]" />
+                            <span className="truncate font-medium text-[#0A0A0A]">
+                              {formatDocLabel(selectedSpan.doc_id)}
+                            </span>
+                            <span className="font-mono-code text-[11px] text-[#525252]">
+                              [{selectedSpan.char_start}:{selectedSpan.char_end}]
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[11px] text-[#059669]">
+                              <ShieldCheck className="h-3 w-3" />
+                              SHA-256 verified
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openSourceDrawer(selectedSpan.doc_id)}
+                            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#0A0A0A] underline-offset-4 transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:underline"
+                          >
+                            <span>Inspect record</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-mono-code text-[11px] text-[#DC2626]">
+                            No anchored span in corpus
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openSourceDrawer(activeDoc?.id)}
+                            className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#0A0A0A] underline-offset-4 transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:underline"
+                          >
+                            <span>Browse records</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </>
                       )}
                     </div>
+                  </div>
 
-                    <div className="grid grid-cols-1 divide-y divide-[#E5E5E5] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-                      {/* Source A */}
-                      <div className="bg-white p-4">
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono-code text-[10px] font-medium text-[#737373] uppercase">
-                            Source A
-                          </span>
-                          <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-1.5 py-0.5 font-mono-code text-[10px] text-[#0A0A0A]">
-                            {competingClaimA.rev_label}
-                          </span>
-                        </div>
-                        <div className="mt-2 font-mono-code text-base font-medium text-[#0A0A0A]">
-                          {formatPrimaryValue(competingClaimA)}
-                        </div>
-                        {formatRawLine(competingClaimA) && (
-                          <div className="mt-0.5 font-mono-code text-[11px] text-[#737373]">
-                            ({formatRawLine(competingClaimA)})
+                  {/* Row 2: Evidence Status / Spec Delta / Audit Gate */}
+                  {(isBlockedFinding ||
+                    (isMissingEvidenceConflict && selectedConflict) ||
+                    (showDualComparison && selectedConflict && competingClaimA) ||
+                    selectedClaim) && (
+                    <div className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-start sm:gap-4">
+                      <span className="w-36 shrink-0 pt-0.5 text-xs text-[#737373]">
+                        {isBlockedFinding
+                          ? "Audit gate"
+                          : isMissingEvidenceConflict
+                            ? "Required slot"
+                            : showDualComparison
+                              ? "Spec comparison"
+                              : "Verified parameter"}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        {isBlockedFinding ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span className="font-medium text-[#DC2626]">
+                              Rejected · No verified SHA-256 span in corpus
+                            </span>
+                            <span className="font-mono-code text-[11px] text-[#737373]">
+                              {selectedFinding.rule_id}
+                            </span>
                           </div>
-                        )}
-                        {competingClaimA.span_id && spanMap.get(competingClaimA.span_id) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openSourceDrawer(spanMap.get(competingClaimA.span_id!)!.doc_id)
-                            }
-                            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#666666] underline decoration-[#E5E5E5] underline-offset-4 transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-[#0A0A0A]"
-                          >
-                            {formatDocLabel(spanMap.get(competingClaimA.span_id)!.doc_id)}
-                          </button>
-                        )}
-                      </div>
+                        ) : isMissingEvidenceConflict && selectedConflict ? (
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="font-mono-code text-[12px] font-medium text-[#0A0A0A]">
+                              {selectedConflict.parameter}
+                            </span>
+                            <span className="text-[#CCCCCC]">·</span>
+                            <span className="text-[#D97706]">
+                              Omitted in {missingEvidenceDocLabel} after 2 bounded retries
+                            </span>
+                          </div>
+                        ) : showDualComparison && selectedConflict && competingClaimA ? (
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+                              <span className="inline-flex items-baseline gap-1.5">
+                                <span className="text-[#737373]">Source A:</span>
+                                <span className="font-mono-code font-medium text-[#0A0A0A]">
+                                  {formatPrimaryValue(competingClaimA)}
+                                </span>
+                                {competingClaimA.span_id &&
+                                  spanMap.get(competingClaimA.span_id) && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openSourceDrawer(
+                                          spanMap.get(competingClaimA.span_id!)!.doc_id
+                                        )
+                                      }
+                                      className="text-[11px] text-[#737373] underline decoration-[#E5E5E5] underline-offset-4 hover:text-[#0A0A0A]"
+                                    >
+                                      ({formatDocLabel(spanMap.get(competingClaimA.span_id)!.doc_id)})
+                                    </button>
+                                  )}
+                              </span>
 
-                      {/* Source B */}
-                      <div className="bg-[#FAFAFB] p-4">
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono-code text-[10px] font-medium text-[#737373] uppercase">
-                            Source B
-                          </span>
-                          <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-1.5 py-0.5 font-mono-code text-[10px] text-[#0A0A0A]">
-                            {competingClaimB && competingClaimB.id !== competingClaimA.id
-                              ? competingClaimB.rev_label
-                              : "BASELINE"}
-                          </span>
-                        </div>
-                        <div className="mt-2 font-mono-code text-base font-medium text-[#0A0A0A]">
-                          {competingClaimB && competingClaimB.id !== competingClaimA.id
-                            ? formatPrimaryValue(competingClaimB)
-                            : selectedConflict.conflict_type === "MISSING_EVIDENCE"
-                              ? "Omitted"
-                              : "Limit exceeded"}
-                        </div>
-                        {competingClaimB &&
-                          competingClaimB.id !== competingClaimA.id &&
-                          formatRawLine(competingClaimB) && (
-                            <div className="mt-0.5 font-mono-code text-[11px] text-[#737373]">
-                              ({formatRawLine(competingClaimB)})
+                              <span className="text-[#999999]">vs</span>
+
+                              <span className="inline-flex items-baseline gap-1.5">
+                                <span className="text-[#737373]">Source B:</span>
+                                <span className="font-mono-code font-medium text-[#0A0A0A]">
+                                  {competingClaimB && competingClaimB.id !== competingClaimA.id
+                                    ? formatPrimaryValue(competingClaimB)
+                                    : "Limit exceeded"}
+                                </span>
+                                {competingClaimB &&
+                                  competingClaimB.id !== competingClaimA.id &&
+                                  formatRawLine(competingClaimB) && (
+                                    <span className="font-mono-code text-[11px] text-[#737373]">
+                                      ({formatRawLine(competingClaimB)})
+                                    </span>
+                                  )}
+                                {competingClaimB?.span_id &&
+                                  spanMap.get(competingClaimB.span_id) && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openSourceDrawer(
+                                          spanMap.get(competingClaimB.span_id!)!.doc_id
+                                        )
+                                      }
+                                      className="text-[11px] text-[#737373] underline decoration-[#E5E5E5] underline-offset-4 hover:text-[#0A0A0A]"
+                                    >
+                                      ({formatDocLabel(spanMap.get(competingClaimB.span_id)!.doc_id)})
+                                    </button>
+                                  )}
+                              </span>
                             </div>
-                          )}
-                        {competingClaimB?.span_id && spanMap.get(competingClaimB.span_id) && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openSourceDrawer(spanMap.get(competingClaimB.span_id!)!.doc_id)
-                            }
-                            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#666666] underline decoration-[#E5E5E5] underline-offset-4 transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-[#0A0A0A]"
-                          >
-                            {formatDocLabel(spanMap.get(competingClaimB.span_id)!.doc_id)}
-                          </button>
-                        )}
+
+                            {numericDelta && (
+                              <span
+                                className={`shrink-0 rounded-[2px] border px-2 py-0.5 font-mono-code text-[11px] font-medium ${
+                                  selectedConflict.conflict_type === "DOWNSTREAM_OVERLOAD" ||
+                                  selectedFinding.severity === "CRITICAL"
+                                    ? "border-[#DC2626]/30 bg-[#DC2626]/10 text-[#DC2626]"
+                                    : "border-[#D97706]/30 bg-[#D97706]/10 text-[#D97706]"
+                                }`}
+                              >
+                                {numericDelta}
+                              </span>
+                            )}
+                          </div>
+                        ) : selectedClaim ? (
+                          <div className="flex flex-wrap items-baseline gap-2.5 text-xs">
+                            <span className="font-mono-code font-medium text-[#0A0A0A]">
+                              {formatPrimaryValue(selectedClaim)}
+                            </span>
+                            <span className="font-mono-code text-[11px] text-[#737373]">
+                              {selectedClaim.rev_label} · {selectedClaim.rev_status}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
-                  </div>
-                ) : selectedClaim ? (
-                  <div className="mt-6 rounded-[2px] border border-[#E5E5E5] bg-white px-4 py-3">
-                    <div className="text-[11px] font-medium text-[#737373]">
-                      Extracted parameter
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-3">
-                      <span className="font-mono-code text-base font-medium text-[#0A0A0A]">
-                        {formatPrimaryValue(selectedClaim)}
-                      </span>
-                      <span className="font-mono-code text-[11px] text-[#737373]">
-                        {selectedClaim.rev_label} · {selectedClaim.rev_status}
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
+                  )}
 
-                {/* Calm Resolve Conflict Panel (OPEN) */}
+                  {/* Row 3: Inline Expandable Verification Checks */}
+                  <div className="py-3">
+                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4">
+                      <span className="w-36 shrink-0 text-xs text-[#737373]">
+                        Verification checks
+                      </span>
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                        <span className="truncate text-xs text-[#0A0A0A]">
+                          {checksSummaryText}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setChecksExpanded((prev) => !prev)}
+                          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-[#666666] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-[#0A0A0A]"
+                        >
+                          <span>{checksExpanded ? "Hide" : "View"}</span>
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 transition-transform duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              checksExpanded ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {checksExpanded && (
+                      <ul className="mt-3 divide-y divide-[#F4F4F5] border-t border-[#F4F4F5] pt-1 sm:pl-40">
+                        {verificationChecks.map((chk) => (
+                          <li
+                            key={chk.label}
+                            className="flex items-center justify-between gap-3 py-2 text-xs"
+                          >
+                            <span className="flex min-w-0 items-center gap-2 text-[#0A0A0A]">
+                              {chk.state === "passed" ? (
+                                <Check className="h-3.5 w-3.5 shrink-0 text-[#059669]" />
+                              ) : chk.state === "escalated" ? (
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#D97706]" />
+                              ) : (
+                                <ShieldX className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
+                              )}
+                              <span className="truncate">{chk.label}</span>
+                            </span>
+                            <span
+                              className={`shrink-0 font-mono-code text-[10px] ${
+                                chk.state === "passed"
+                                  ? "text-[#059669]"
+                                  : chk.state === "escalated"
+                                    ? "text-[#D97706]"
+                                    : "text-[#DC2626]"
+                              }`}
+                            >
+                              {chk.ruleId}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Linear-Style Integrated Decision Composer (OPEN) or Calm Receipt (RESOLVED) */}
                 {selectedFinding.audit_status === "ESCALATED" &&
                   selectedConflict &&
                   selectedConflict.status === "OPEN" && (
-                    <div className="mt-6 space-y-4 rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] p-5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-sm font-medium text-[#0A0A0A]">
-                          Resolve conflict
-                        </span>
-                        <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-2 py-0.5 font-mono-code text-[10px] font-medium text-[#666666]">
+                    <div className="pt-7">
+                      <div className="flex items-center justify-between gap-2">
+                        <h2 className="text-xs font-medium text-[#0A0A0A]">
+                          Decision
+                        </h2>
+                        <span className="font-mono-code text-[11px] text-[#737373]">
                           {CONFLICT_TYPE_LABELS[selectedConflict.conflict_type]}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {QUICK_RESOLUTION_PRESETS.map((preset) => {
                           const activeChoice =
                             choiceByConflict[selectedConflict.id] ??
-                            QUICK_RESOLUTION_PRESETS[0];
+                            getDefaultPreset(selectedConflict, selectedFinding);
                           const isChosen = activeChoice === preset;
                           return (
                             <button
@@ -684,130 +808,94 @@ export function ReviewWorkspace({
                                   [selectedConflict.id]: preset,
                                 }))
                               }
-                              className={`rounded-[2px] border px-3 py-2 text-left text-xs font-medium leading-snug transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                              className={`flex items-center gap-2.5 rounded-[4px] border px-3.5 py-2.5 text-left text-[13px] leading-snug transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                                 isChosen
-                                  ? "border-[#0A0A0A] bg-[#0A0A0A] text-white"
-                                  : "border-[#E5E5E5] bg-white text-[#0A0A0A] hover:border-[#0A0A0A]"
+                                  ? "border-[#0A0A0A] bg-[#F7F7F8] font-medium text-[#0A0A0A]"
+                                  : "border-[#E5E5E5] bg-white font-normal text-[#525252] hover:bg-[#FAFAFB] hover:text-[#0A0A0A]"
                               }`}
                             >
-                              {preset}
+                              <span
+                                className={`h-[6px] w-[6px] shrink-0 rounded-full ${
+                                  isChosen
+                                    ? "bg-[#0A0A0A]"
+                                    : "bg-transparent ring-1 ring-[#D4D4D8]"
+                                }`}
+                              />
+                              <span>{preset}</span>
                             </button>
                           );
                         })}
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-[#0A0A0A]">
-                          Engineering rationale
-                        </label>
+                      <div className="mt-3 overflow-hidden rounded-[4px] border border-[#E5E5E5] bg-white transition-[border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] focus-within:border-[#0A0A0A]">
                         <textarea
-                          rows={2}
-                          placeholder="Enter required verification or mitigation rationale..."
+                          rows={3}
+                          placeholder="Add engineering verification or mitigation rationale..."
                           value={rationaleByConflict[selectedConflict.id] ?? ""}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             setRationaleByConflict((prev) => ({
                               ...prev,
                               [selectedConflict.id]: e.target.value,
-                            }))
-                          }
-                          className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] focus:border-[#0A0A0A] focus:outline-none"
+                            }));
+                            if (formErrorByConflict[selectedConflict.id]) {
+                              setFormErrorByConflict((prev) => ({
+                                ...prev,
+                                [selectedConflict.id]: "",
+                              }));
+                            }
+                          }}
+                          className="w-full resize-none border-0 bg-transparent px-3.5 py-3 text-[13px] leading-relaxed text-[#0A0A0A] placeholder:text-[#999999] focus:outline-none"
                         />
-                      </div>
-
-                      {formErrorByConflict[selectedConflict.id] && (
-                        <p className="text-xs text-[#DC2626]">
-                          {formErrorByConflict[selectedConflict.id]}
-                        </p>
-                      )}
-
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          disabled={resolvingConflictId === selectedConflict.id}
-                          onClick={() => handleConfirmResolution(selectedConflict)}
-                          className="rounded-[2px] bg-[#0A0A0A] px-5 py-2 text-xs font-medium text-white transition-[background-color,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#262626] disabled:opacity-50"
-                        >
-                          {resolvingConflictId === selectedConflict.id
-                            ? "Re-evaluating impact..."
-                            : "Record decision & re-check impact"}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                {/* Resolved Decision Receipt */}
-                {selectedConflict && selectedConflict.status === "RESOLVED" && (
-                  <div className="mt-6 rounded-[2px] border border-[#E5E5E5] bg-white p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#059669]">
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        Recorded engineer decision
-                      </span>
-                      <span className="rounded-[2px] border border-[#059669]/30 bg-[#059669]/10 px-1.5 py-0.5 font-mono-code text-[10px] text-[#059669]">
-                        RESOLVED
-                      </span>
-                    </div>
-                    <div className="mt-2 text-xs font-medium text-[#0A0A0A]">
-                      {selectedConflict.resolution_choice}
-                    </div>
-                    <p className="mt-1 text-xs text-[#666666]">
-                      {selectedConflict.reviewer_rationale}
-                    </p>
-                  </div>
-                )}
-
-                {/* Collapsible Verification Checks Disclosure */}
-                <div className="mt-6 rounded-[2px] border border-[#E5E5E5] bg-white">
-                  <button
-                    type="button"
-                    onClick={() => setChecksExpanded((prev) => !prev)}
-                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-[background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#FAFAFB]"
-                  >
-                    <div className="flex items-center gap-2.5 text-xs">
-                      <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-[#0A0A0A]" />
-                      <span className="font-medium text-[#0A0A0A]">Verification checks</span>
-                      <span className="text-[#666666]">· {checksSummaryText}</span>
-                    </div>
-                    {checksExpanded ? (
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#666666]" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#666666]" />
-                    )}
-                  </button>
-
-                  {checksExpanded && (
-                    <ul className="divide-y divide-[#F0F0F0] border-t border-[#E5E5E5]">
-                      {verificationChecks.map((chk) => (
-                        <li
-                          key={chk.label}
-                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-xs"
-                        >
-                          <span className="flex min-w-0 items-center gap-2 text-[#0A0A0A]">
-                            {chk.state === "passed" ? (
-                              <Check className="h-3.5 w-3.5 shrink-0 text-[#059669]" />
-                            ) : chk.state === "escalated" ? (
-                              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-[#D97706]" />
-                            ) : (
-                              <ShieldX className="h-3.5 w-3.5 shrink-0 text-[#DC2626]" />
-                            )}
-                            <span className="truncate">{chk.label}</span>
-                          </span>
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#F0F0F0] bg-[#FAFAFB] px-3 py-2">
                           <span
-                            className={`shrink-0 rounded-[2px] border px-1.5 py-0.5 font-mono-code text-[10px] ${
-                              chk.state === "passed"
-                                ? "border-[#059669]/30 bg-[#059669]/10 text-[#059669]"
-                                : chk.state === "escalated"
-                                  ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
-                                  : "border-[#DC2626]/30 bg-[#DC2626]/10 text-[#DC2626]"
+                            className={`text-[11px] ${
+                              formErrorByConflict[selectedConflict.id]
+                                ? "font-medium text-[#DC2626]"
+                                : "text-[#737373]"
                             }`}
                           >
-                            {chk.ruleId}
+                            {formErrorByConflict[selectedConflict.id] ||
+                              "Required for audit trail"}
                           </span>
-                        </li>
-                      ))}
-                    </ul>
+                          <button
+                            type="button"
+                            disabled={resolvingConflictId === selectedConflict.id}
+                            onClick={() => handleConfirmResolution(selectedConflict)}
+                            className="inline-flex items-center gap-1.5 rounded-[4px] bg-[#0A0A0A] px-3.5 py-1.5 text-xs font-medium text-white transition-[background-color,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#262626] disabled:opacity-50"
+                          >
+                            <span>
+                              {resolvingConflictId === selectedConflict.id
+                                ? "Re-evaluating..."
+                                : "Record decision"}
+                            </span>
+                            <ArrowRight className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                </div>
+
+                {selectedConflict && selectedConflict.status === "RESOLVED" && (
+                  <div className="pt-7">
+                    <div className="border-l-2 border-[#059669] bg-[#F0FDF4]/60 px-4 py-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#059669]">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Decision recorded
+                        </span>
+                        <span className="font-mono-code text-[10px] text-[#059669]">
+                          RESOLVED
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-[13px] font-medium text-[#0A0A0A]">
+                        {selectedConflict.resolution_choice}
+                      </div>
+                      <p className="mt-1 text-xs leading-relaxed text-[#525252]">
+                        {selectedConflict.reviewer_rationale}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           ) : (
@@ -816,6 +904,15 @@ export function ReviewWorkspace({
         </div>
       </main>
 
+      {/* Translucent Click-to-Close Backdrop Scrim for Slide-Over Drawer */}
+      <div
+        aria-hidden="true"
+        onClick={() => setDrawerOpen(false)}
+        className={`fixed inset-0 top-[52px] z-30 bg-black/[0.08] backdrop-blur-[1px] transition-opacity duration-[200ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          drawerOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+      />
+
       {/* RIGHT SLIDE-OVER SOURCE RECORD DRAWER (Attio-Style) */}
       <aside
         aria-hidden={!drawerOpen}
@@ -823,7 +920,7 @@ export function ReviewWorkspace({
           drawerOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
         }`}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-[#FAFAFB] px-4">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-[#FAFAFB] px-4">
           <div className="flex items-center gap-2">
             <FileText className="h-3.5 w-3.5 text-[#0A0A0A]" />
             <span className="text-xs font-medium text-[#0A0A0A]">
@@ -845,72 +942,65 @@ export function ReviewWorkspace({
           </div>
         </div>
 
-        {/* Document Tab Switcher (doc1..doc5) */}
-        <div className="border-b border-[#E5E5E5] bg-white px-4 py-2.5">
-          <div className="flex flex-wrap gap-1.5">
-            {runState.documents.map((doc) => {
-              const isActive = activeDoc?.id === doc.id;
-              const isSuperseded = doc.status === "SUPERSEDED";
-              return (
-                <button
-                  key={doc.id}
-                  type="button"
-                  onClick={() => onSelectDoc(doc.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-[2px] border px-2.5 py-1 text-[11px] font-medium transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                    isActive
-                      ? "border-[#0A0A0A] bg-[#0A0A0A] text-white"
-                      : "border-[#E5E5E5] bg-[#FAFAFB] text-[#0A0A0A] hover:border-[#0A0A0A]"
-                  }`}
-                >
-                  <span className={isSuperseded && !isActive ? "line-through opacity-75" : ""}>
-                    {formatDocLabel(doc.id)}
-                  </span>
+        {/* Single-Line Horizontal Hairline Document Tab Switcher */}
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#E5E5E5] bg-white px-4">
+          {runState.documents.map((doc) => {
+            const isActive = activeDoc?.id === doc.id;
+            const isSuperseded = doc.status === "SUPERSEDED";
+            return (
+              <button
+                key={doc.id}
+                type="button"
+                onClick={() => onSelectDoc(doc.id)}
+                className={`relative inline-flex shrink-0 items-center gap-1.5 px-2.5 py-2.5 text-xs whitespace-nowrap transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isActive
+                    ? "font-medium text-[#0A0A0A]"
+                    : "text-[#666666] hover:text-[#0A0A0A]"
+                }`}
+              >
+                <span className={isSuperseded && !isActive ? "line-through opacity-75" : ""}>
+                  {formatCompactTabLabel(doc.id)}
+                </span>
+                {isSuperseded && (
                   <span
-                    className={`rounded-[2px] px-1 py-0.2 font-mono-code text-[9px] uppercase ${
-                      isActive
-                        ? "bg-white/15 text-white"
-                        : isSuperseded
-                          ? "bg-[#D97706]/15 text-[#D97706]"
-                          : "bg-[#059669]/10 text-[#059669]"
-                    }`}
-                  >
-                    {isSuperseded ? `${doc.rev_label} Old` : doc.rev_label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    title="Superseded revision"
+                    className="h-1.5 w-1.5 rounded-full bg-[#D97706]"
+                  />
+                )}
+                {isActive && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1 bottom-0 left-1 h-[2px] bg-[#0A0A0A]"
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Active Span Offset Bar */}
+        {/* Single Slim Provenance Offset Bar */}
         {activeDoc && (
           <div
-            className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 font-mono-code text-[10px] ${
+            className={`flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-2 font-mono-code text-[10px] ${
               activeDocSpan
                 ? "border-[#D97706]/30 bg-[#FEF3C7]/60 text-[#0A0A0A]"
                 : "border-[#E5E5E5] bg-[#FAFAFB] text-[#666666]"
             }`}
           >
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-[#0A0A0A]">{activeDoc.id}</span>
-              <span className="text-[#CCCCCC]">·</span>
-              {activeDocSpan ? (
-                <span className="font-medium text-[#D97706]">
-                  [{activeDocSpan.char_start}:{activeDocSpan.char_end}]
-                </span>
-              ) : (
-                <span>No active span in this record</span>
-              )}
-            </div>
-
             {activeDocSpan ? (
-              <span className="inline-flex items-center gap-1 rounded-[2px] border border-[#059669]/30 bg-white px-1.5 py-0.5 text-[9px] text-[#059669]">
-                <ShieldCheck className="h-3 w-3" />
-                SHA-256 · {activeDocSpan.text_hash.slice(0, 10)}
+              <span className="font-medium text-[#D97706]">
+                [{activeDocSpan.char_start}:{activeDocSpan.char_end}] · SHA-256 verified
               </span>
             ) : (
-              <span>SHA-256 · {activeDoc.content_hash.slice(0, 12)}</span>
+              <span>No active span in this record</span>
             )}
+
+            <span className="text-[#666666]">
+              SHA-256 ·{" "}
+              {activeDocSpan
+                ? activeDocSpan.text_hash.slice(0, 10)
+                : activeDoc.content_hash.slice(0, 12)}
+            </span>
           </div>
         )}
 
@@ -925,6 +1015,7 @@ export function ReviewWorkspace({
               docTitle={formatDocLabel(activeDoc.id)}
               revLabel={activeDoc.rev_label}
               docStatus={activeDoc.status}
+              compactHeader
             />
           ) : (
             <p className="text-xs text-[#666666]">No document selected.</p>
