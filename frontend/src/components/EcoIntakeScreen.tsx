@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, ChevronDown, Paperclip, RotateCcw, X } from "lucide-react";
 import { fetchScenarios } from "../api";
 import type { CustomEcoInput, ScenarioPreset } from "../types";
@@ -41,6 +41,7 @@ interface ExamplePreset {
   id: string;
   code: string;
   shortTitle: string;
+  pressureTag: string;
   summary: string;
   scenarioId: string;
   targetEntityId: string;
@@ -55,6 +56,7 @@ const EXAMPLE_PRESETS: ExamplePreset[] = [
     id: "eco_01",
     code: "ECO-01",
     shortTitle: "Pump Upgrade (14.0 bar)",
+    pressureTag: "14.0 bar",
     summary: "Flags Rev A, 175 psi mismatch, missing vibration & 4 overloads.",
     scenarioId: "eco_01_pump_upgrade",
     targetEntityId: "P-101",
@@ -68,6 +70,7 @@ const EXAMPLE_PRESETS: ExamplePreset[] = [
     id: "eco_02",
     code: "ECO-02",
     shortTitle: "Mechanical Seal Swap",
+    pressureTag: "10.0 bar",
     summary: "Same 10.0 bar rating; catches baseline 175 psi mismatch.",
     scenarioId: "eco_02_seal_swap",
     targetEntityId: "P-101",
@@ -81,6 +84,7 @@ const EXAMPLE_PRESETS: ExamplePreset[] = [
     id: "eco_03",
     code: "ECO-03",
     shortTitle: "Valve V-12 Class 300",
+    pressureTag: "25.0 bar",
     summary: "25.0 bar MAWP upgrade compatible with P-101; clean sign-off.",
     scenarioId: "eco_03_valve_upgrade",
     targetEntityId: "V-12",
@@ -304,8 +308,8 @@ export function EcoIntakeScreen({
     return `${selectedEquipment.id} · Awaiting pressure delta`;
   })();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const triggerSubmit = useCallback(async () => {
+    if (isRunning) return;
     if (!canSubmit) {
       setValidationError(
         "Attach a replacement datasheet or enter a target pressure or specification excerpt before running verification."
@@ -328,7 +332,35 @@ export function EcoIntakeScreen({
       proposed_spec_text: proposedSpecText.trim(),
       change_request: proposedSpecText.trim(),
     });
+  }, [
+    canSubmit,
+    isRunning,
+    linkedScenarioId,
+    onSubmitEco,
+    proposedModel,
+    proposedPressureBar,
+    proposedSpecText,
+    targetEntityId,
+    title,
+  ]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await triggerSubmit();
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        if (!isRunning && canSubmit) {
+          event.preventDefault();
+          void triggerSubmit();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canSubmit, isRunning, triggerSubmit]);
 
   if (isRunning) {
     return (
@@ -412,78 +444,105 @@ export function EcoIntakeScreen({
       onDrop={handleComposerDrop}
       className="mx-auto max-w-2xl px-6 py-10 sm:py-12"
     >
-      {/* Header Row with Reference Scenarios Dropdown */}
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#E5E5E5] pb-5">
-        <div>
+      {/* Aligned Header Row: Title + Right-Aligned Reference Scenarios Popover */}
+      <div className="border-b border-[#E5E5E5] pb-5">
+        <div className="flex items-center justify-between gap-4">
           <h1 className="text-[22px] font-medium tracking-[-0.02em] text-[#0A0A0A]">
             New engineering change
           </h1>
-          <p className="mt-1 text-xs text-[#666666]">
-            Select a Plant Line-4 asset, specify operating changes, and run deterministic verification.
-          </p>
-        </div>
 
-        <div ref={menuContainerRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setScenarioMenuOpen((prev) => !prev)}
-            className="inline-flex items-center gap-2 rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-1.5 text-xs font-medium text-[#0A0A0A] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A] hover:bg-[#F7F7F8]"
-          >
-            <span>
-              {selectedPresetId
-                ? `Loaded: ${EXAMPLE_PRESETS.find((p) => p.id === selectedPresetId)?.code ?? "Scenario"}`
-                : "Load reference scenario"}
-            </span>
-            <ChevronDown className="h-3.5 w-3.5 text-[#666666]" />
-          </button>
+          <div ref={menuContainerRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setScenarioMenuOpen((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-1.5 text-xs font-medium text-[#0A0A0A] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A] hover:bg-[#FAFAFB]"
+            >
+              <span>
+                {selectedPresetId
+                  ? `Loaded: ${EXAMPLE_PRESETS.find((p) => p.id === selectedPresetId)?.code ?? "Scenario"}`
+                  : "Load reference scenario"}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 text-[#666666]" />
+            </button>
 
-          {scenarioMenuOpen && (
-            <div className="absolute right-0 z-30 mt-1.5 w-80 rounded-[2px] border border-[#0A0A0A] bg-white py-1">
-              <div className="border-b border-[#E5E5E5] px-3 py-1.5 text-[11px] font-medium text-[#666666]">
-                Reference scenarios
-              </div>
-              {EXAMPLE_PRESETS.map((preset) => {
-                const active = selectedPresetId === preset.id;
-                return (
+            {scenarioMenuOpen && (
+              <div className="absolute right-0 z-30 mt-1.5 w-[340px] rounded-[2px] border border-[#0A0A0A] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
+                <div className="border-b border-[#E5E5E5] bg-[#FAFAFB] px-3 py-2">
+                  <div className="text-[11px] font-medium text-[#666666]">
+                    Quick-fill reference scenarios
+                  </div>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    {EXAMPLE_PRESETS.map((preset) => {
+                      const active = selectedPresetId === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handleLoadPreset(preset)}
+                          className={`rounded-[2px] border px-2 py-1 font-mono-code text-[10px] font-medium transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                            active
+                              ? "border-[#0A0A0A] bg-[#0A0A0A] text-white"
+                              : "border-[#E5E5E5] bg-white text-[#0A0A0A] hover:border-[#0A0A0A]"
+                          }`}
+                        >
+                          {preset.code} · {preset.pressureTag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="divide-y divide-[#F0F0F0]">
+                  {EXAMPLE_PRESETS.map((preset) => {
+                    const active = selectedPresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handleLoadPreset(preset)}
+                        className={`flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left transition-[background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#FAFAFB] ${
+                          active ? "bg-[#F7F7F8]" : "bg-white"
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono-code text-[11px] font-medium text-[#0A0A0A]">
+                              {preset.code}
+                            </span>
+                            <span className="text-xs font-medium text-[#0A0A0A]">
+                              {preset.shortTitle}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-[11px] leading-4 text-[#737373]">
+                            {preset.summary}
+                          </p>
+                        </div>
+                        {active && (
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0A0A0A]" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {hasAnyInput && (
                   <button
-                    key={preset.id}
                     type="button"
-                    onClick={() => handleLoadPreset(preset)}
-                    className={`flex w-full items-start justify-between gap-2 border-b border-[#E5E5E5] px-3 py-2.5 text-left last:border-b-0 transition-[background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#F7F7F8] ${
-                      active ? "bg-[#F7F7F8]" : "bg-white"
-                    }`}
+                    onClick={handleClearForm}
+                    className="flex w-full items-center gap-1.5 border-t border-[#E5E5E5] px-3 py-2 text-left text-xs text-[#666666] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#F7F7F8] hover:text-[#0A0A0A]"
                   >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono-code text-[11px] font-medium text-[#0A0A0A]">
-                          {preset.code}
-                        </span>
-                        <span className="text-xs font-medium text-[#0A0A0A]">
-                          {preset.shortTitle}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] leading-4 text-[#666666]">
-                        {preset.summary}
-                      </p>
-                    </div>
-                    {active && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0A0A0A]" />}
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Reset form</span>
                   </button>
-                );
-              })}
-
-              {hasAnyInput && (
-                <button
-                  type="button"
-                  onClick={handleClearForm}
-                  className="flex w-full items-center gap-1.5 border-t border-[#E5E5E5] px-3 py-2 text-left text-xs text-[#666666] hover:bg-[#F7F7F8] hover:text-[#0A0A0A]"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  <span>Reset form</span>
-                </button>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        <p className="mt-1.5 text-xs text-[#666666]">
+          Select a Plant Line-4 asset, specify operating changes, and run deterministic verification.
+        </p>
       </div>
 
       {/* Composer Form */}
@@ -527,7 +586,7 @@ export function EcoIntakeScreen({
               );
             })}
           </div>
-          <div className="border border-t-0 border-[#E5E5E5] bg-[#F7F7F8] px-3.5 py-2 font-mono-code text-[11px] text-[#666666]">
+          <div className="border border-t-0 border-[#E5E5E5] bg-[#FAFAFB] px-3.5 py-2 font-mono-code text-[11px] text-[#666666]">
             {selectedEquipment.baselineLine}
           </div>
         </div>
@@ -544,7 +603,7 @@ export function EcoIntakeScreen({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g., Pump P-101 Upgrade"
-                className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:outline-none"
+                className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] hover:bg-[#FAFAFB] focus:border-[#0A0A0A] focus:bg-white focus:outline-none"
               />
             </div>
 
@@ -561,27 +620,32 @@ export function EcoIntakeScreen({
                   setLinkedScenarioId(null);
                 }}
                 placeholder="e.g., Centriflo-550"
-                className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:outline-none"
+                className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] hover:bg-[#FAFAFB] focus:border-[#0A0A0A] focus:bg-white focus:outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-[#0A0A0A]">
-                Target pressure (bar)
+                Target pressure
               </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={proposedPressureBar}
-                onChange={(e) => {
-                  setProposedPressureBar(e.target.value);
-                  setSelectedPresetId(null);
-                  setLinkedScenarioId(null);
-                }}
-                placeholder="e.g., 14.0"
-                className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 font-mono-code text-xs text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:outline-none"
-              />
+              <div className="relative mt-1.5">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={proposedPressureBar}
+                  onChange={(e) => {
+                    setProposedPressureBar(e.target.value);
+                    setSelectedPresetId(null);
+                    setLinkedScenarioId(null);
+                  }}
+                  placeholder="14.0"
+                  className="w-full [appearance:textfield] rounded-[2px] border border-[#E5E5E5] bg-white py-2 pr-10 pl-3 font-mono-code text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] hover:bg-[#FAFAFB] focus:border-[#0A0A0A] focus:bg-white focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center font-mono-code text-[11px] text-[#737373]">
+                  bar
+                </span>
+              </div>
             </div>
           </div>
 
@@ -598,7 +662,7 @@ export function EcoIntakeScreen({
                 setLinkedScenarioId(null);
               }}
               placeholder="Paste replacement datasheet excerpts (supports bar, psi, kPa, MPa, flow rate, flange class, or drop a .md / .txt file anywhere here)..."
-              className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] p-3 font-mono-code text-xs leading-5 text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:bg-white focus:outline-none"
+              className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] p-3 font-mono-code text-xs leading-5 text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] focus:border-[#0A0A0A] focus:bg-white focus:outline-none"
             />
 
             <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
@@ -615,7 +679,7 @@ export function EcoIntakeScreen({
                 <button
                   type="button"
                   onClick={handleClearForm}
-                  className="text-xs text-[#666666] hover:text-[#0A0A0A]"
+                  className="text-xs text-[#666666] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-[#0A0A0A]"
                 >
                   Clear form
                 </button>
@@ -675,10 +739,13 @@ export function EcoIntakeScreen({
           <button
             type="submit"
             disabled={!canSubmit || isRunning}
-            className="inline-flex items-center gap-2 rounded-[2px] bg-[#0A0A0A] px-6 py-2.5 text-xs font-medium text-white transition-[background-color,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-[2px] bg-[#0A0A0A] px-5 py-2.5 text-xs font-medium text-white transition-[background-color,opacity] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span>Run verification</span>
             <ArrowRight className="h-3.5 w-3.5" />
+            <kbd className="ml-0.5 rounded-[2px] bg-white/15 px-1.5 py-0.5 font-mono-code text-[10px] font-normal text-white/85">
+              ⌘↵
+            </kbd>
           </button>
         </div>
       </form>

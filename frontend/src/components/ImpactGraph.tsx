@@ -106,7 +106,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
         const state = entityStatusMap.get(ent.canonical_id) ?? "info";
 
         let railClass = "border-l-[#0A0A0A]";
-        let badgeClass = "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]";
+        let badgeClass = "border-[#E5E5E5] bg-[#FAFAFB] text-[#0A0A0A]";
         let dotClass = "bg-[#0A0A0A]";
         let statusLabel = ent.hop === 0 ? "Target asset" : "Verified";
 
@@ -117,7 +117,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           statusLabel = "Overload";
         } else if (state === "conflict") {
           railClass = "border-l-[#D97706]";
-          badgeClass = "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]";
+          badgeClass = "border-[#D97706]/30 bg-[#D97706]/10 text-[#D97706]";
           dotClass = "bg-[#D97706]";
           statusLabel = "Open conflict";
         } else if (state === "resolved") {
@@ -126,9 +126,9 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           dotClass = "bg-[#059669]";
           statusLabel = "Resolved";
         } else if (state === "info") {
-          railClass = "border-l-[#999999]";
-          badgeClass = "border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]";
-          dotClass = "bg-[#666666]";
+          railClass = "border-l-[#94A3B8]";
+          badgeClass = "border-[#E5E5E5] bg-[#FAFAFB] text-[#737373]";
+          dotClass = "bg-[#94A3B8]";
           statusLabel = "Verified";
         }
 
@@ -152,13 +152,13 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           data: {
             label: (
               <div
-                className={`group w-[264px] rounded-[2px] border border-[#E5E5E5] border-l-2 bg-white p-3.5 text-left transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A] ${railClass}`}
+                className={`group w-[264px] rounded-[4px] border border-[#E5E5E5] border-l-2 bg-white p-3.5 text-left transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A] hover:bg-[#FAFAFB]/40 ${railClass}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono-code text-[10px] font-medium text-[#666666]">
+                  <span className="font-mono-code text-[10px] font-medium text-[#737373]">
                     {ent.hop === 0 ? "Hop 0 · Target" : `Hop ${ent.hop}`}
                   </span>
-                  <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-1.5 py-0.2 font-mono-code text-[9px] font-medium text-[#666666]">
+                  <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-1.5 py-0.2 font-mono-code text-[9px] font-medium text-[#737373]">
                     {typeTag}
                   </span>
                 </div>
@@ -170,14 +170,14 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
                   {ent.name}
                 </div>
 
-                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E5E5E5] pt-2.5">
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#F0F0F0] pt-2.5">
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-[2px] border px-2 py-0.5 font-mono-code text-[10px] font-medium ${badgeClass}`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-[1px] ${dotClass}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
                     {statusLabel}
                   </span>
-                  <span className="font-mono-code text-[10px] font-medium text-[#666666] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-[#0A0A0A]">
+                  <span className="font-mono-code text-[10px] font-medium text-[#737373] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-[#0A0A0A]">
                     Inspect →
                   </span>
                 </div>
@@ -206,7 +206,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
             ? "#D97706"
             : isResolved
               ? "#059669"
-              : "#999999";
+              : "#94A3B8";
 
       return {
         id: e.id,
@@ -256,15 +256,15 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
   }, [runState, targetEntity]);
 
   return (
-    <div className="rg-workbench-flow relative h-[calc(100vh-52px)] min-h-[560px] w-full bg-white">
+    <div className="rg-workbench-flow relative h-[calc(100vh-52px)] min-h-[560px] w-full bg-[#FAFAFB]">
       {/* Top-Left Floating Telemetry HUD */}
       <div className="pointer-events-none absolute top-4 left-4 z-10 max-w-md">
-        <div className="pointer-events-auto rounded-[2px] border border-[#E5E5E5] bg-white px-4 py-3">
+        <div className="pointer-events-auto rounded-[4px] border border-[#E5E5E5] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-[#0A0A0A]">
               Blast-radius topology
             </span>
-            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-1.5 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
+            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-1.5 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
               Target {targetEntity}
             </span>
           </div>
@@ -276,7 +276,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
             <span
               className={`rounded-[2px] border px-2 py-0.5 ${
                 stats.openConflictNodes > 0
-                  ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
+                  ? "border-[#D97706]/30 bg-[#D97706]/10 text-[#D97706]"
                   : "border-[#E5E5E5] bg-[#FAFAFB] text-[#666666]"
               }`}
             >
@@ -285,12 +285,12 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
             <span className="rounded-[2px] border border-[#059669]/30 bg-[#059669]/10 px-2 py-0.5 text-[#059669]">
               {stats.resolvedNodes} resolved
             </span>
-            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-2 py-0.5 text-[#0A0A0A]">
+            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-2 py-0.5 text-[#0A0A0A]">
               {stats.verifiedNodes} verified
             </span>
           </div>
 
-          <p className="mt-2 text-[11px] text-[#666666]">
+          <p className="mt-2 text-[11px] text-[#737373]">
             Click any asset node to jump directly to its finding in Evidence Review.
           </p>
         </div>
@@ -298,21 +298,21 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
 
       {/* Bottom-Left Floating Status Legend */}
       <div className="pointer-events-none absolute bottom-4 left-4 z-10">
-        <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded-[2px] border border-[#E5E5E5] bg-white px-3.5 py-2 text-[11px] font-medium text-[#0A0A0A]">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded-[4px] border border-[#E5E5E5] bg-white px-3.5 py-2 text-[11px] font-medium text-[#0A0A0A] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-[1px] bg-[#0A0A0A]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#0A0A0A]" />
             Verified
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-[1px] bg-[#DC2626]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#DC2626]" />
             Overload
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-[1px] bg-[#D97706]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
             Open conflict
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-[1px] bg-[#059669]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
             Resolved
           </span>
         </div>
@@ -333,7 +333,7 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
         />
         <Controls
           position="bottom-right"
-          className="rounded-[2px] border border-[#E5E5E5] bg-white"
+          className="rounded-[4px] border border-[#E5E5E5] bg-white"
         />
       </ReactFlow>
     </div>

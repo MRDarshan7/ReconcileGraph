@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, MotionConfig, motion } from "framer-motion";
 import {
   checkBackendHealth,
   createRun,
@@ -257,52 +258,65 @@ export default function App() {
       : plantDocuments;
 
   return (
-    <IntakeBar
-      activeView={effectiveView}
-      onSelectView={(view) => {
-        setErrorBanner(null);
-        setNavView(view);
-      }}
-      onReturnToOverview={handleReturnToOverview}
-      isRunning={isRunning}
-      runState={runState}
-      healthInfo={healthInfo}
-      documentCount={documentsForLibrary.length}
-      onSignOff={handleSignOff}
-      isSigningOff={isSigningOff}
-    >
-      {errorBanner && effectiveView !== "intake" && (
-        <div className="border-b border-[#DC2626]/30 bg-[#DC2626]/5 px-6 py-2.5 text-xs text-[#DC2626]">
-          {errorBanner}
-        </div>
-      )}
+    <MotionConfig reducedMotion="user">
+      <IntakeBar
+        activeView={effectiveView}
+        onSelectView={(view) => {
+          setErrorBanner(null);
+          setNavView(view);
+        }}
+        onReturnToOverview={handleReturnToOverview}
+        isRunning={isRunning}
+        runState={runState}
+        healthInfo={healthInfo}
+        documentCount={documentsForLibrary.length}
+        onSignOff={handleSignOff}
+        isSigningOff={isSigningOff}
+      >
+        {errorBanner && effectiveView !== "intake" && (
+          <div className="border-b border-[#DC2626]/30 bg-[#DC2626]/5 px-6 py-2.5 text-xs text-[#DC2626]">
+            {errorBanner}
+          </div>
+        )}
 
-      {effectiveView === "intake" ? (
-        <EcoIntakeScreen
-          onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
-          isRunning={isRunning}
-          errorBanner={errorBanner}
-        />
-      ) : effectiveView === "records" ? (
-        <PlantRecordsView documents={documentsForLibrary} isLoading={docsLoading} />
-      ) : runState && effectiveView === "review" ? (
-        <ReviewWorkspace
-          runState={runState}
-          selectedFindingId={selectedFindingId}
-          onSelectFinding={setSelectedFindingId}
-          activeDocId={activeDocId}
-          onSelectDoc={setActiveDocId}
-          onResolveConflict={handleResolveConflict}
-          resolvingConflictId={resolvingConflictId}
-        />
-      ) : runState && effectiveView === "graph" ? (
-        <ImpactGraph
-          runState={runState}
-          onSelectEntity={handleSelectEntityFromGraph}
-        />
-      ) : runState ? (
-        <AblationView runState={runState} ablation={ablation} />
-      ) : null}
-    </IntakeBar>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={effectiveView}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            className="h-full"
+          >
+            {effectiveView === "intake" ? (
+              <EcoIntakeScreen
+                onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
+                isRunning={isRunning}
+                errorBanner={errorBanner}
+              />
+            ) : effectiveView === "records" ? (
+              <PlantRecordsView documents={documentsForLibrary} isLoading={docsLoading} />
+            ) : runState && effectiveView === "review" ? (
+              <ReviewWorkspace
+                runState={runState}
+                selectedFindingId={selectedFindingId}
+                onSelectFinding={setSelectedFindingId}
+                activeDocId={activeDocId}
+                onSelectDoc={setActiveDocId}
+                onResolveConflict={handleResolveConflict}
+                resolvingConflictId={resolvingConflictId}
+              />
+            ) : runState && effectiveView === "graph" ? (
+              <ImpactGraph
+                runState={runState}
+                onSelectEntity={handleSelectEntityFromGraph}
+              />
+            ) : runState ? (
+              <AblationView runState={runState} ablation={ablation} />
+            ) : null}
+          </motion.div>
+        </AnimatePresence>
+      </IntakeBar>
+    </MotionConfig>
   );
 }

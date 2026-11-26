@@ -111,7 +111,7 @@ export function IntakeBar({
     },
     {
       id: "ablation",
-      label: "Verification & Benchmarks",
+      label: "Audit & Benchmarks",
       icon: BarChart3,
       enabled: Boolean(runState) && !isRunning,
       badge: runState ? runState.audit_events.length : null,
@@ -126,7 +126,7 @@ export function IntakeBar({
       return `${runState?.eco.target_entity ?? "P-101"} · Impact map`;
     }
     if (activeView === "ablation") {
-      return `${runState?.eco.target_entity ?? "P-101"} · Verification log`;
+      return `${runState?.eco.target_entity ?? "P-101"} · Audit & benchmarks`;
     }
     return runState?.eco.title || runState?.eco.target_entity || "Evidence review";
   })();
@@ -186,7 +186,7 @@ export function IntakeBar({
             onClick={() => setRailCollapsed((prev) => !prev)}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation rail" : "Collapse navigation rail"}
-            className="hidden h-7 w-7 items-center justify-center rounded-[2px] text-[#666666] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-white hover:text-[#0A0A0A] lg:inline-flex"
+            className="hidden h-7 w-7 items-center justify-center rounded-[4px] text-[#666666] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-black/[0.04] hover:text-[#0A0A0A] lg:inline-flex"
           >
             {collapsed ? (
               <PanelLeftOpen className="h-3.5 w-3.5" />
@@ -199,13 +199,13 @@ export function IntakeBar({
             type="button"
             onClick={() => setMobileMenuOpen(false)}
             aria-label="Close navigation menu"
-            className="inline-flex h-7 w-7 items-center justify-center rounded-[2px] text-[#666666] hover:bg-white hover:text-[#0A0A0A] lg:hidden"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-[4px] text-[#666666] hover:bg-black/[0.04] hover:text-[#0A0A0A] lg:hidden"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Navigation Links */}
+        {/* Linear-Style Borderless Navigation Links */}
         <nav className="space-y-0.5 p-2" aria-label="Workbench navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -217,37 +217,31 @@ export function IntakeBar({
                 disabled={!item.enabled}
                 onClick={() => item.enabled && handleSelectNav(item.id)}
                 title={collapsed ? item.label : undefined}
-                className={`relative flex w-full items-center rounded-[2px] border text-left text-xs font-medium transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                  collapsed ? "justify-center px-0 py-2" : "justify-between px-2.5 py-2"
+                className={`flex w-full items-center rounded-[4px] text-left text-[13px] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  collapsed ? "justify-center px-0 py-2" : "justify-between px-2.5 py-1.5"
                 } ${
                   isActive
-                    ? "border-[#E5E5E5] bg-white text-[#0A0A0A]"
+                    ? "bg-black/[0.055] font-medium text-[#0A0A0A]"
                     : item.enabled
-                      ? "border-transparent text-[#666666] hover:bg-white/70 hover:text-[#0A0A0A]"
-                      : "cursor-not-allowed border-transparent text-[#A3A3A3] opacity-60"
+                      ? "font-normal text-[#52525B] hover:bg-black/[0.03] hover:text-[#0A0A0A]"
+                      : "cursor-not-allowed font-normal text-[#A1A1AA] opacity-60"
                 }`}
               >
-                {isActive && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute top-1 bottom-1 left-0 w-[2px] bg-[#0A0A0A]"
-                  />
-                )}
                 <span className={`flex min-w-0 items-center ${collapsed ? "" : "gap-2.5"}`}>
                   <Icon
                     className={`h-3.5 w-3.5 shrink-0 ${
                       isActive ? "text-[#0A0A0A]" : "text-current"
                     }`}
                   />
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && <span className="whitespace-nowrap">{item.label}</span>}
                 </span>
 
                 {!collapsed && item.badge !== null && item.badge !== undefined && (
                   <span
-                    className={`ml-2 shrink-0 rounded-[2px] border px-1.5 py-0.2 font-mono-code text-[10px] font-medium ${
+                    className={`ml-2 shrink-0 rounded-[3px] px-1.5 py-0.2 font-mono-code text-[10px] font-medium ${
                       item.badgeTone === "amber"
-                        ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
-                        : "border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]"
+                        ? "bg-[#D97706]/12 text-[#D97706]"
+                        : "text-[#737373]"
                     }`}
                   >
                     {item.badge}
@@ -260,20 +254,20 @@ export function IntakeBar({
       </div>
 
       {/* Bottom Rail Status & Overview Return */}
-      <div className="space-y-1.5 border-t border-[#E5E5E5] p-2.5">
+      <div className="space-y-1 border-t border-[#E5E5E5] p-2">
         <div
           title={
             isOfflineMode
               ? "Offline deterministic mode active"
               : `Live AI active (${runState?.active_key_slot ?? healthInfo?.model ?? "Gemini"})`
           }
-          className={`flex items-center rounded-[2px] px-2 py-1.5 text-[11px] font-medium text-[#666666] ${
+          className={`flex items-center rounded-[4px] px-2.5 py-1.5 text-[11px] font-medium text-[#666666] ${
             collapsed ? "justify-center" : "gap-2"
           }`}
         >
           <span
-            className={`h-2 w-2 shrink-0 rounded-[1px] ${
-              isOfflineMode ? "bg-[#666666]" : "bg-[#059669]"
+            className={`h-2 w-2 shrink-0 rounded-full ${
+              isOfflineMode ? "bg-[#737373]" : "bg-[#059669]"
             }`}
           />
           {!collapsed && (
@@ -287,7 +281,7 @@ export function IntakeBar({
           type="button"
           onClick={onReturnToOverview}
           title="Return to overview"
-          className={`flex w-full items-center rounded-[2px] border border-transparent px-2 py-1.5 text-xs font-medium text-[#666666] transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#E5E5E5] hover:bg-white hover:text-[#0A0A0A] ${
+          className={`flex w-full items-center rounded-[4px] px-2.5 py-1.5 text-xs font-medium text-[#52525B] transition-[background-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-black/[0.03] hover:text-[#0A0A0A] ${
             collapsed ? "justify-center" : "gap-2"
           }`}
         >
@@ -303,7 +297,7 @@ export function IntakeBar({
       {/* Desktop Left Navigation Rail */}
       <aside
         className={`sticky top-0 hidden h-screen shrink-0 border-r border-[#E5E5E5] bg-[#F7F7F8] transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block ${
-          railCollapsed ? "w-[56px]" : "w-[224px]"
+          railCollapsed ? "w-[56px]" : "w-[232px]"
         }`}
       >
         {renderRailContent(railCollapsed)}
@@ -336,7 +330,7 @@ export function IntakeBar({
             </button>
 
             <div className="flex min-w-0 items-center gap-2 font-mono-code text-[11px]">
-              <span className="shrink-0 text-[#666666]">Plant Line-4</span>
+              <span className="shrink-0 text-[#737373]">Plant Line-4</span>
               <span className="text-[#CCCCCC] select-none">/</span>
               <span className="truncate font-medium text-[#0A0A0A]">
                 {breadcrumbSegment}
@@ -364,7 +358,7 @@ export function IntakeBar({
                   className={`inline-flex items-center gap-2 rounded-[2px] px-3 py-1.5 text-xs font-medium transition-[background-color,border-color,color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     canSignOff
                       ? "bg-[#059669] text-white hover:bg-[#047857]"
-                      : "cursor-not-allowed border border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]"
+                      : "cursor-not-allowed border border-[#E5E5E5] bg-[#FAFAFB] text-[#666666]"
                   }`}
                 >
                   {canSignOff ? (
@@ -374,7 +368,7 @@ export function IntakeBar({
                   )}
                   <span>Approve &amp; Sign-Off ECO</span>
                   {!canSignOff && (
-                    <span className="rounded-[2px] border border-[#D97706]/35 bg-[#D97706]/10 px-1.5 py-0.5 font-mono-code text-[10px] font-medium text-[#D97706]">
+                    <span className="rounded-[2px] border border-[#D97706]/30 bg-[#D97706]/10 px-1.5 py-0.5 font-mono-code text-[10px] font-medium text-[#D97706]">
                       HTTP 409 · {openConflictsCount}{" "}
                       {openConflictsCount === 1 ? "open conflict" : "open conflicts"}
                     </span>
@@ -437,7 +431,7 @@ export function IntakeBar({
                   placeholder="e.g., A. Sharma, Lead Process Engineer"
                   value={reviewerName}
                   onChange={(e) => setReviewerName(e.target.value)}
-                  className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:outline-none"
+                  className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] focus:border-[#0A0A0A] focus:outline-none"
                 />
               </div>
 
@@ -451,7 +445,7 @@ export function IntakeBar({
                   placeholder="Confirm all conflicts, mitigation steps, and downstream safeguards have been verified."
                   value={signOffRationale}
                   onChange={(e) => setSignOffRationale(e.target.value)}
-                  className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] focus:border-[#0A0A0A] focus:outline-none"
+                  className="mt-1.5 w-full rounded-[2px] border border-[#E5E5E5] bg-white px-3 py-2 text-xs text-[#0A0A0A] placeholder:text-[#999999] transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#D4D4D8] focus:border-[#0A0A0A] focus:outline-none"
                 />
               </div>
 

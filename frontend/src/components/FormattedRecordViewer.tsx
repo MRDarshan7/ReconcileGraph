@@ -222,7 +222,7 @@ export function FormattedRecordViewer({
     <div className="space-y-3 text-[13.5px] leading-6 text-[#333333]">
       {/* Controlled Engineering Document Metadata Strip */}
       {(docId || docTitle) && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-3.5 py-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[4px] border border-[#E5E5E5] bg-[#FAFAFB] px-3.5 py-2">
           <div className="flex flex-wrap items-center gap-2">
             {docId && (
               <span className="rounded-[2px] border border-[#E5E5E5] bg-white px-2 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
