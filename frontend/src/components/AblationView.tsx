@@ -22,35 +22,35 @@ const METRIC_LABELS: Array<{
   key: keyof AblationResponse["systems"][number]["metrics"];
   label: string;
 }> = [
-  { key: "evidence_traceability", label: "Evidence Traceability" },
-  { key: "revision_resolution", label: "Revision Resolution" },
-  { key: "conflict_detection", label: "Conflict Detection" },
-  { key: "impact_correctness", label: "Impact Correctness" },
-  { key: "escalation_precision", label: "Escalation Precision" },
-  { key: "audit_faithfulness", label: "Audit Faithfulness" },
-  { key: "overall_score", label: "Overall Score" },
+  { key: "evidence_traceability", label: "Evidence traceability" },
+  { key: "revision_resolution", label: "Revision resolution" },
+  { key: "conflict_detection", label: "Conflict detection" },
+  { key: "impact_correctness", label: "Impact correctness" },
+  { key: "escalation_precision", label: "Escalation precision" },
+  { key: "audit_faithfulness", label: "Audit faithfulness" },
+  { key: "overall_score", label: "Overall score" },
 ];
 
 const AGENT_BADGE_STYLES: Record<string, { label: string; style: string }> = {
   ExtractionAgent: {
     label: "ExtractionAgent",
-    style: "border-sky-200 bg-sky-50 text-sky-800",
+    style: "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]",
   },
   ReconciliationAgent: {
     label: "ReconciliationAgent",
-    style: "border-amber-200 bg-amber-50 text-amber-900",
+    style: "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]",
   },
   ImpactAgent: {
     label: "ImpactAgent",
-    style: "border-indigo-200 bg-indigo-50 text-indigo-800",
+    style: "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]",
   },
   AuditorAgent: {
     label: "AuditorAgent",
-    style: "border-rose-200 bg-rose-50 text-rose-800",
+    style: "border-[#DC2626]/30 bg-[#DC2626]/10 text-[#DC2626]",
   },
   ReviewGate: {
     label: "ReviewGate",
-    style: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    style: "border-[#059669]/30 bg-[#059669]/10 text-[#059669]",
   },
 };
 
@@ -70,70 +70,70 @@ function formatNarrative(evt: AuditEvent): { summary: string; badge: string; ton
     return {
       summary: `Converted ${String(detail.claim_b ?? "175 psi")} and flagged mismatch against ${String(detail.claim_a ?? "10.0 bar")} Spec Rev B.`,
       badge: "CONFLICT FLAGGED",
-      tone: "border-amber-200 bg-amber-50 text-amber-900",
+      tone: "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]",
     };
   }
   if (evt.rule_id.startsWith("RULE_BOUNDED_RETRY")) {
     const docLabel = formatDocLabel(String(detail.doc_id ?? "doc4_maint_log.md"));
     return {
-      summary: `Re-checked ${docLabel} (attempt ${String(detail.attempt ?? 1)}) for missing '${String(detail.slot ?? "vibration_baseline")}' — confirmed absent.`,
+      summary: `Re-checked ${docLabel} (attempt ${String(detail.attempt ?? 1)}) for missing '${String(detail.slot ?? "vibration_baseline")}' and confirmed absent.`,
       badge: "BOUNDED RETRY",
-      tone: "border-amber-200 bg-amber-50 text-amber-900",
+      tone: "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]",
     };
   }
   if (evt.rule_id === "RULE_AUDIT_REJECT_UNGROUNDED") {
     return {
       summary: "Rejected an ungrounded candidate finding lacking a verified SHA-256 source span.",
       badge: "BLOCKED",
-      tone: "border-rose-200 bg-rose-50 text-rose-800",
+      tone: "border-[#DC2626]/30 bg-[#DC2626]/10 text-[#DC2626]",
     };
   }
   if (evt.action === "decision re-checks impact") {
     return {
       summary: `Recorded engineering decision '${String(detail.resolution_choice ?? "")}' for ${String(detail.entity_id ?? "")} and re-verified downstream impact.`,
       badge: "RE-VERIFIED",
-      tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      tone: "border-[#059669]/30 bg-[#059669]/10 text-[#059669]",
     };
   }
   if (evt.rule_id === "RULE_BFS_BLAST_RADIUS") {
     return {
       summary: `Traversed ${String(detail.node_count ?? 5)} connected plant assets and procedures across ${String(detail.edge_count ?? 5)} dependencies from ${String(detail.target_entity ?? "P-101")}.`,
       badge: "IMPACT MAPPED",
-      tone: "border-sky-200 bg-sky-50 text-sky-800",
+      tone: "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]",
     };
   }
   if (evt.rule_id === "RULE_RECONCILE_NORMALIZE") {
     return {
       summary: `Normalized ${String(detail.total_claims ?? 0)} extracted claims across equipment tags, Pint units, and revisions (excluded ${String(detail.superseded_claims ?? 0)} superseded claims).`,
       badge: "RECONCILED",
-      tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      tone: "border-[#059669]/30 bg-[#059669]/10 text-[#059669]",
     };
   }
   if (evt.rule_id === "RULE_AUDIT_COMPLETE") {
     return {
       summary: `Completed fail-closed audit: ${String(detail.verified ?? 0)} verified, ${String(detail.escalated ?? 0)} escalated, ${String(detail.rejected ?? 0)} rejected.`,
       badge: "AUDIT COMPLETE",
-      tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      tone: "border-[#059669]/30 bg-[#059669]/10 text-[#059669]",
     };
   }
   if (evt.rule_id === "RULE_ECO_SIGNOFF") {
     return {
       summary: `ECO approved and signed off: ${String(detail.sign_off_note ?? "All conflicts resolved.")}`,
       badge: "APPROVED",
-      tone: "border-emerald-300 bg-emerald-100 text-emerald-900",
+      tone: "border-[#059669]/35 bg-[#059669]/10 text-[#059669]",
     };
   }
   if (evt.rule_id === "RULE_LLM_FALLBACK") {
     return {
       summary: `Activated deterministic guardrail fallback (${String(detail.summary ?? "offline mode")}).`,
       badge: "OFFLINE FALLBACK",
-      tone: "border-amber-200 bg-amber-50 text-amber-900",
+      tone: "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]",
     };
   }
   return {
     summary: evt.action,
     badge: "COMPLETED",
-    tone: "border-slate-200 bg-slate-100 text-slate-700",
+    tone: "border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]",
   };
 }
 
@@ -145,23 +145,23 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
   };
 
   return (
-    <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-4 bg-slate-50 p-4 lg:h-[calc(100vh-118px)] lg:min-h-[600px] lg:grid-cols-12">
+    <div className="grid grid-cols-1 divide-y divide-[#E5E5E5] bg-white lg:h-[calc(100vh-52px)] lg:grid-cols-12 lg:divide-x lg:divide-y-0 lg:overflow-hidden">
       {/* Left Column: Chronological Verification Trace */}
-      <section className="flex min-h-[460px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs lg:col-span-6 lg:min-h-0">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-4 py-2.5">
+      <section className="flex min-h-[460px] flex-col lg:col-span-6 lg:min-h-0">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-[#FAFAFB] px-5">
           <div className="flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-slate-600" />
-            <h2 className="font-mono-code text-[11px] font-bold tracking-wider text-slate-800 uppercase">
-              Chronological Verification Trace
+            <Clock className="h-3.5 w-3.5 text-[#0A0A0A]" />
+            <h2 className="text-xs font-medium text-[#0A0A0A]">
+              Chronological verification trace
             </h2>
           </div>
-          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono-code text-[10px] font-bold text-slate-700">
-            {runState.audit_events.length} STEPS
+          <span className="font-mono-code text-[11px] text-[#666666]">
+            {runState.audit_events.length} steps
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="relative space-y-3 pl-5 before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-px before:bg-slate-200">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
+          <div className="relative space-y-3 pl-7 before:absolute before:top-2 before:bottom-2 before:left-[10px] before:w-px before:bg-[#E5E5E5]">
             {runState.audit_events.map((evt) => {
               const narrative = formatNarrative(evt);
               const isRetry = evt.rule_id.startsWith("RULE_BOUNDED_RETRY");
@@ -170,31 +170,30 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
               const isExpanded = Boolean(expandedPayloads[evt.id]);
               const agentInfo = AGENT_BADGE_STYLES[evt.agent_name] ?? {
                 label: evt.agent_name,
-                style: "border-slate-200 bg-slate-100 text-slate-700",
+                style: "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]",
               };
 
               return (
                 <div key={evt.id} className="relative">
-                  {/* Timeline Step Circle */}
                   <span
-                    className={`absolute -left-5 top-3.5 flex h-[22px] w-[22px] items-center justify-center rounded-full border font-mono-code text-[10px] font-bold shadow-2xs ${
+                    className={`absolute -left-7 top-3 flex h-[21px] w-[21px] items-center justify-center rounded-[2px] border font-mono-code text-[10px] font-medium ${
                       isRejected
-                        ? "border-rose-300 bg-rose-50 text-rose-800"
+                        ? "border-[#DC2626]/40 bg-[#DC2626]/10 text-[#DC2626]"
                         : isRecheck
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                          ? "border-[#059669]/40 bg-[#059669]/10 text-[#059669]"
                           : isRetry
-                            ? "border-amber-300 bg-amber-50 text-amber-900"
-                            : "border-slate-300 bg-white text-slate-800"
+                            ? "border-[#D97706]/40 bg-[#D97706]/10 text-[#D97706]"
+                            : "border-[#E5E5E5] bg-white text-[#0A0A0A]"
                     }`}
                   >
                     {String(evt.step_order).padStart(2, "0")}
                   </span>
 
-                  <div className="rounded-lg border border-slate-200 bg-white p-3.5 transition hover:border-slate-300">
+                  <div className="rounded-[2px] border border-[#E5E5E5] bg-white p-3.5 transition-[border-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A]">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span
-                          className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono-code text-[10px] font-bold ${agentInfo.style}`}
+                          className={`inline-flex items-center gap-1 rounded-[2px] border px-2 py-0.5 font-mono-code text-[10px] font-medium ${agentInfo.style}`}
                         >
                           {isRetry ? (
                             <RefreshCw className="h-3 w-3" />
@@ -208,45 +207,45 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                           {agentInfo.label}
                         </span>
 
-                        <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono-code text-[10px] font-semibold text-slate-700">
+                        <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-1.5 py-0.5 font-mono-code text-[10px] text-[#666666]">
                           {evt.rule_id}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <span
-                          className={`rounded border px-1.5 py-0.5 font-mono-code text-[9px] font-bold ${narrative.tone}`}
+                          className={`rounded-[2px] border px-1.5 py-0.5 font-mono-code text-[9px] font-medium ${narrative.tone}`}
                         >
                           {narrative.badge}
                         </span>
-                        <span className="font-mono-code text-[10px] text-slate-400">
+                        <span className="font-mono-code text-[10px] text-[#666666]">
                           {formatTimestamp(evt.timestamp)}
                         </span>
                       </div>
                     </div>
 
-                    <p className="mt-2 text-xs leading-5 text-slate-700">
+                    <p className="mt-2 text-xs leading-5 text-[#333333]">
                       {formatDocLabel(narrative.summary)}
                     </p>
 
-                    <div className="mt-2">
+                    <div className="mt-2.5">
                       <button
                         type="button"
                         onClick={() => togglePayload(evt.id)}
-                        className="inline-flex items-center gap-1 font-mono-code text-[10px] font-semibold text-slate-500 transition hover:text-slate-900"
+                        className="inline-flex items-center gap-1 font-mono-code text-[10px] font-medium text-[#666666] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:text-[#0A0A0A]"
                       >
                         {isExpanded ? (
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-3 w-3" />
                         ) : (
-                          <ChevronRight className="h-3.5 w-3.5" />
+                          <ChevronRight className="h-3 w-3" />
                         )}
                         <Terminal className="h-3 w-3" />
-                        Inspect Raw Trace JSON
+                        <span>Inspect raw trace JSON</span>
                       </button>
                     </div>
 
                     {isExpanded && (
-                      <pre className="mt-2 overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-3 font-mono-code text-[11px] leading-relaxed text-slate-200">
+                      <pre className="mt-2 overflow-x-auto rounded-[2px] border border-[#E5E5E5] bg-[#0A0A0A] p-3 font-mono-code text-[11px] leading-relaxed text-[#E5E5E5]">
                         {JSON.stringify(
                           {
                             step_order: evt.step_order,
@@ -269,26 +268,26 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
       </section>
 
       {/* Right Column: 3-Way System Benchmark Scorecard */}
-      <section className="flex min-h-[460px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs lg:col-span-6 lg:min-h-0">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/70 px-4 py-2.5">
+      <section className="flex min-h-[460px] flex-col lg:col-span-6 lg:min-h-0">
+        <div className="flex h-11 shrink-0 items-center justify-between border-b border-[#E5E5E5] bg-[#FAFAFB] px-5">
           <div className="flex items-center gap-2">
-            <BarChart3 className="h-3.5 w-3.5 text-slate-600" />
-            <h2 className="font-mono-code text-[11px] font-bold tracking-wider text-slate-800 uppercase">
-              System Benchmark Scorecard
+            <BarChart3 className="h-3.5 w-3.5 text-[#0A0A0A]" />
+            <h2 className="text-xs font-medium text-[#0A0A0A]">
+              3-way benchmark scorecard
             </h2>
           </div>
-          <span className="rounded border border-slate-200 bg-white px-2 py-0.5 font-mono-code text-[10px] font-bold text-slate-700">
-            {ablation ? `${ablation.scenario_count} SCENARIOS` : "GET /api/ablation"}
+          <span className="font-mono-code text-[11px] text-[#666666]">
+            {ablation ? `${ablation.scenario_count} scenarios` : "Loading"}
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto px-5 py-5">
           {ablation ? (
             <>
-              <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="overflow-x-auto rounded-[2px] border border-[#E5E5E5]">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 font-mono-code text-[10px] font-bold tracking-wider text-slate-600 uppercase">
+                    <tr className="border-b border-[#E5E5E5] bg-[#FAFAFB] font-mono-code text-[10px] font-medium text-[#666666] uppercase">
                       <th className="px-3.5 py-2.5">Metric</th>
                       {ablation.systems.map((sys) => {
                         const isOurs = sys.name.includes("ReconcileGraph");
@@ -296,7 +295,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                           <th
                             key={sys.name}
                             className={`px-3.5 py-2.5 ${
-                              isOurs ? "bg-emerald-50/80 text-emerald-900" : ""
+                              isOurs ? "bg-[#059669]/10 text-[#059669]" : ""
                             }`}
                           >
                             {sys.name}
@@ -305,7 +304,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                       })}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#E5E5E5]">
                     {METRIC_LABELS.map(({ key, label }) => {
                       const isOverall = key === "overall_score";
                       return (
@@ -313,11 +312,11 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                           key={key}
                           className={
                             isOverall
-                              ? "border-t border-slate-200 bg-slate-50/90 font-bold"
+                              ? "border-t border-[#E5E5E5] bg-[#FAFAFB] font-medium"
                               : ""
                           }
                         >
-                          <td className="px-3.5 py-2.5 text-xs font-medium text-slate-800">
+                          <td className="px-3.5 py-2.5 text-xs text-[#0A0A0A]">
                             {label}
                           </td>
                           {ablation.systems.map((sys) => {
@@ -328,29 +327,29 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                               <td
                                 key={sys.name}
                                 className={`px-3.5 py-2.5 ${
-                                  isOurs ? "bg-emerald-50/45" : ""
+                                  isOurs ? "bg-[#059669]/[0.04]" : ""
                                 }`}
                               >
                                 <div className="flex items-baseline justify-between gap-2 font-mono-code">
                                   <span
-                                    className={`text-xs font-bold ${
-                                      isOurs ? "text-emerald-700" : "text-slate-800"
+                                    className={`text-xs font-medium ${
+                                      isOurs ? "text-[#059669]" : "text-[#0A0A0A]"
                                     }`}
                                   >
                                     {pct}%
                                   </span>
-                                  <span className="text-[10px] text-slate-400">
+                                  <span className="text-[10px] text-[#666666]">
                                     {score.toFixed(2)}
                                   </span>
                                 </div>
-                                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80">
+                                <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-[1px] bg-[#E5E5E5]">
                                   <div
-                                    className={`h-full rounded-full ${
+                                    className={`h-full rounded-[1px] ${
                                       isOurs
-                                        ? "bg-emerald-600"
+                                        ? "bg-[#059669]"
                                         : pct >= 50
-                                          ? "bg-sky-500"
-                                          : "bg-slate-400"
+                                          ? "bg-[#666666]"
+                                          : "bg-[#A3A3A3]"
                                     }`}
                                     style={{ width: `${pct}%` }}
                                   />
@@ -365,7 +364,7 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                 </table>
               </div>
 
-              <div className="mt-4 space-y-2.5">
+              <div className="mt-5 space-y-2.5">
                 {ablation.systems.map((sys) => {
                   const isOurs = sys.name.includes("ReconcileGraph");
                   const overallScore = sys.metrics.overall_score;
@@ -373,27 +372,25 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
                   return (
                     <div
                       key={sys.name}
-                      className={`rounded-lg border p-3.5 text-xs ${
+                      className={`rounded-[2px] border border-[#E5E5E5] p-3.5 text-xs ${
                         isOurs
-                          ? "border-emerald-200 bg-emerald-50/55"
-                          : "border-slate-200 bg-slate-50/60"
+                          ? "border-l-2 border-l-[#059669] bg-[#FAFAFB]"
+                          : "bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-display font-bold text-slate-900">
-                          {sys.name}
-                        </span>
+                        <span className="font-medium text-[#0A0A0A]">{sys.name}</span>
                         <span
-                          className={`rounded border px-2 py-0.5 font-mono-code text-[10px] font-bold ${
+                          className={`rounded-[2px] border px-2 py-0.5 font-mono-code text-[10px] font-medium ${
                             isOurs
-                              ? "border-emerald-300 bg-white text-emerald-800"
-                              : "border-slate-200 bg-white text-slate-700"
+                              ? "border-[#059669]/30 bg-[#059669]/10 text-[#059669]"
+                              : "border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]"
                           }`}
                         >
                           {overallPct}% ({overallScore.toFixed(2)})
                         </span>
                       </div>
-                      <p className="mt-1.5 text-[11.5px] leading-5 text-slate-600">
+                      <p className="mt-1.5 text-xs leading-5 text-[#666666]">
                         {sys.notes}
                       </p>
                     </div>
@@ -402,12 +399,8 @@ export function AblationView({ runState, ablation }: AblationViewProps) {
               </div>
             </>
           ) : (
-            <div className="space-y-3">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 font-mono-code text-xs text-slate-500">
-                Fetching 3-way benchmark scorecard from /api/ablation...
-              </div>
-              <div className="h-44 animate-pulse rounded-lg border border-slate-200 bg-slate-100/70" />
-              <div className="h-24 animate-pulse rounded-lg border border-slate-200 bg-slate-100/70" />
+            <div className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] p-4 font-mono-code text-xs text-[#666666]">
+              Fetching 3-way benchmark scorecard from /api/ablation...
             </div>
           )}
         </div>

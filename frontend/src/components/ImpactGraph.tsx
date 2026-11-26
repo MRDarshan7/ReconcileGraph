@@ -105,31 +105,31 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
       bucket.forEach((ent, idx) => {
         const state = entityStatusMap.get(ent.canonical_id) ?? "info";
 
-        let railClass = "border-l-sky-500";
-        let pillClass = "border-sky-200 bg-sky-50 text-sky-800";
-        let dotClass = "bg-sky-500";
-        let statusLabel = ent.hop === 0 ? "SOURCE ASSET" : "VERIFIED";
+        let railClass = "border-l-[#0A0A0A]";
+        let badgeClass = "border-[#E5E5E5] bg-[#F7F7F8] text-[#0A0A0A]";
+        let dotClass = "bg-[#0A0A0A]";
+        let statusLabel = ent.hop === 0 ? "Target asset" : "Verified";
 
         if (state === "overload") {
-          railClass = "border-l-rose-500";
-          pillClass = "border-rose-200 bg-rose-50 text-rose-800";
-          dotClass = "bg-rose-500";
-          statusLabel = "OVERLOAD";
+          railClass = "border-l-[#DC2626]";
+          badgeClass = "border-[#DC2626]/30 bg-[#DC2626]/10 text-[#DC2626]";
+          dotClass = "bg-[#DC2626]";
+          statusLabel = "Overload";
         } else if (state === "conflict") {
-          railClass = "border-l-amber-500";
-          pillClass = "border-amber-200 bg-amber-50 text-amber-900";
-          dotClass = "bg-amber-500";
-          statusLabel = "OPEN CONFLICT";
+          railClass = "border-l-[#D97706]";
+          badgeClass = "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]";
+          dotClass = "bg-[#D97706]";
+          statusLabel = "Open conflict";
         } else if (state === "resolved") {
-          railClass = "border-l-emerald-500";
-          pillClass = "border-emerald-200 bg-emerald-50 text-emerald-800";
-          dotClass = "bg-emerald-500";
-          statusLabel = "RESOLVED";
+          railClass = "border-l-[#059669]";
+          badgeClass = "border-[#059669]/30 bg-[#059669]/10 text-[#059669]";
+          dotClass = "bg-[#059669]";
+          statusLabel = "Resolved";
         } else if (state === "info") {
-          railClass = "border-l-slate-400";
-          pillClass = "border-slate-200 bg-slate-100 text-slate-700";
-          dotClass = "bg-slate-400";
-          statusLabel = "VERIFIED";
+          railClass = "border-l-[#999999]";
+          badgeClass = "border-[#E5E5E5] bg-[#F7F7F8] text-[#666666]";
+          dotClass = "bg-[#666666]";
+          statusLabel = "Verified";
         }
 
         const fallbackPos = {
@@ -152,36 +152,33 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
           data: {
             label: (
               <div
-                className={`group w-[264px] rounded-xl border border-slate-200 border-l-[3.5px] bg-white p-3.5 text-left shadow-xs transition hover:border-slate-400 hover:shadow-md ${railClass}`}
+                className={`group w-[264px] rounded-[2px] border border-[#E5E5E5] border-l-2 bg-white p-3.5 text-left transition-[border-color,background-color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[#0A0A0A] ${railClass}`}
               >
-                {/* Top Mono Strip */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono-code text-[10px] font-bold tracking-wider text-slate-500">
-                    {ent.hop === 0 ? "HOP 0 // TARGET" : `HOP ${ent.hop}`}
+                  <span className="font-mono-code text-[10px] font-medium text-[#666666]">
+                    {ent.hop === 0 ? "Hop 0 · Target" : `Hop ${ent.hop}`}
                   </span>
-                  <span className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.2 font-mono-code text-[9px] font-bold text-slate-600">
+                  <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-1.5 py-0.2 font-mono-code text-[9px] font-medium text-[#666666]">
                     {typeTag}
                   </span>
                 </div>
 
-                {/* Asset ID & Name */}
-                <div className="mt-2 font-mono-code text-sm font-bold tracking-tight text-slate-950">
+                <div className="mt-2 font-mono-code text-sm font-semibold tracking-tight text-[#0A0A0A]">
                   {ent.canonical_id}
                 </div>
-                <div className="mt-0.5 truncate text-xs font-medium text-slate-600">
+                <div className="mt-0.5 truncate text-xs text-[#666666]">
                   {ent.name}
                 </div>
 
-                {/* Status Micro-Pill & Inspect Affordance */}
-                <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+                <div className="mt-3 flex items-center justify-between gap-2 border-t border-[#E5E5E5] pt-2.5">
                   <span
-                    className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 font-mono-code text-[9px] font-bold ${pillClass}`}
+                    className={`inline-flex items-center gap-1.5 rounded-[2px] border px-2 py-0.5 font-mono-code text-[10px] font-medium ${badgeClass}`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+                    <span className={`h-1.5 w-1.5 rounded-[1px] ${dotClass}`} />
                     {statusLabel}
                   </span>
-                  <span className="font-mono-code text-[10px] font-semibold text-slate-400 transition group-hover:text-slate-900">
-                    Inspect Finding →
+                  <span className="font-mono-code text-[10px] font-medium text-[#666666] transition-[color] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-[#0A0A0A]">
+                    Inspect →
                   </span>
                 </div>
               </div>
@@ -204,12 +201,12 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
 
       const strokeColor =
         targetState === "overload"
-          ? "#EF4444"
+          ? "#DC2626"
           : targetState === "conflict"
-            ? "#F59E0B"
+            ? "#D97706"
             : isResolved
-              ? "#10B981"
-              : "#94A3B8";
+              ? "#059669"
+              : "#999999";
 
       return {
         id: e.id,
@@ -220,23 +217,23 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
         animated: isHot,
         style: {
           stroke: strokeColor,
-          strokeWidth: isHot ? 2 : 1.5,
+          strokeWidth: isHot ? 1.8 : 1.3,
         },
         labelStyle: {
           fontSize: 10,
-          fontWeight: 700,
+          fontWeight: 500,
           fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-          fill: "#334155",
-          letterSpacing: "0.03em",
+          fill: "#0A0A0A",
+          letterSpacing: "0.02em",
         },
         labelBgStyle: {
           fill: "#FFFFFF",
           fillOpacity: 0.96,
-          stroke: "#CBD5E1",
+          stroke: "#E5E5E5",
           strokeWidth: 1,
         },
-        labelBgPadding: [7, 4],
-        labelBgBorderRadius: 6,
+        labelBgPadding: [6, 3],
+        labelBgBorderRadius: 2,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: strokeColor,
@@ -259,88 +256,86 @@ export function ImpactGraph({ runState, onSelectEntity }: ImpactGraphProps) {
   }, [runState, targetEntity]);
 
   return (
-    <div className="mx-auto max-w-[1600px] p-4">
-      <div className="relative h-[calc(100vh-148px)] min-h-[560px] w-full overflow-hidden rounded-xl border border-slate-200 bg-[#F8FAFC] shadow-2xs">
-        {/* Top-Left Floating Blast-Radius HUD */}
-        <div className="pointer-events-none absolute top-4 left-4 z-10 max-w-md">
-          <div className="pointer-events-auto rounded-xl border border-slate-200/90 bg-white/95 px-4 py-3 shadow-sm backdrop-blur-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono-code text-[10px] font-bold tracking-wider text-slate-500 uppercase">
-                BLAST-RADIUS TOPOLOGY
-              </span>
-              <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.2 font-mono-code text-[10px] font-bold text-slate-800">
-                TARGET {targetEntity}
-              </span>
-            </div>
-
-            <div className="mt-2 flex flex-wrap items-center gap-2 font-mono-code text-[11px] font-semibold">
-              <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                {stats.totalNodes} NODES • {stats.maxHop} HOPS
-              </span>
-              <span
-                className={`rounded border px-2 py-0.5 ${
-                  stats.openConflictNodes > 0
-                    ? "border-amber-300 bg-amber-50 text-amber-900"
-                    : "border-slate-200 bg-slate-50 text-slate-500"
-                }`}
-              >
-                {stats.openConflictNodes} OPEN
-              </span>
-              <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-800">
-                {stats.resolvedNodes} RESOLVED
-              </span>
-              <span className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-800">
-                {stats.verifiedNodes} VERIFIED
-              </span>
-            </div>
-
-            <p className="mt-1.5 text-[11px] text-slate-500">
-              Click any node to jump directly to its anchored finding in Evidence Review.
-            </p>
-          </div>
-        </div>
-
-        {/* Bottom-Left Floating Status Legend */}
-        <div className="pointer-events-none absolute bottom-4 left-4 z-10">
-          <div className="pointer-events-auto flex flex-wrap items-center gap-3.5 rounded-lg border border-slate-200/90 bg-white/95 px-3.5 py-2 text-[11px] font-semibold text-slate-700 shadow-xs backdrop-blur-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-sky-500" />
-              Source / Verified
+    <div className="rg-workbench-flow relative h-[calc(100vh-52px)] min-h-[560px] w-full bg-white">
+      {/* Top-Left Floating Telemetry HUD */}
+      <div className="pointer-events-none absolute top-4 left-4 z-10 max-w-md">
+        <div className="pointer-events-auto rounded-[2px] border border-[#E5E5E5] bg-white px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-[#0A0A0A]">
+              Blast-radius topology
             </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-rose-500" />
-              Overload
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              Open Conflict
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Resolved
+            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-1.5 py-0.5 font-mono-code text-[10px] font-medium text-[#0A0A0A]">
+              Target {targetEntity}
             </span>
           </div>
-        </div>
 
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          fitView
-          fitViewOptions={{ padding: 0.28 }}
-          onNodeClick={(_evt, node) => onSelectEntity(node.id)}
-        >
-          <Background
-            variant={BackgroundVariant.Dots}
-            color="#CBD5E1"
-            gap={22}
-            size={1.2}
-          />
-          <Controls
-            position="bottom-right"
-            className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xs"
-          />
-        </ReactFlow>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 font-mono-code text-[10px]">
+            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#FAFAFB] px-2 py-0.5 text-[#666666]">
+              {stats.totalNodes} nodes · {stats.maxHop} hops
+            </span>
+            <span
+              className={`rounded-[2px] border px-2 py-0.5 ${
+                stats.openConflictNodes > 0
+                  ? "border-[#D97706]/35 bg-[#D97706]/10 text-[#D97706]"
+                  : "border-[#E5E5E5] bg-[#FAFAFB] text-[#666666]"
+              }`}
+            >
+              {stats.openConflictNodes} open
+            </span>
+            <span className="rounded-[2px] border border-[#059669]/30 bg-[#059669]/10 px-2 py-0.5 text-[#059669]">
+              {stats.resolvedNodes} resolved
+            </span>
+            <span className="rounded-[2px] border border-[#E5E5E5] bg-[#F7F7F8] px-2 py-0.5 text-[#0A0A0A]">
+              {stats.verifiedNodes} verified
+            </span>
+          </div>
+
+          <p className="mt-2 text-[11px] text-[#666666]">
+            Click any asset node to jump directly to its finding in Evidence Review.
+          </p>
+        </div>
       </div>
+
+      {/* Bottom-Left Floating Status Legend */}
+      <div className="pointer-events-none absolute bottom-4 left-4 z-10">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-4 rounded-[2px] border border-[#E5E5E5] bg-white px-3.5 py-2 text-[11px] font-medium text-[#0A0A0A]">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-[1px] bg-[#0A0A0A]" />
+            Verified
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-[1px] bg-[#DC2626]" />
+            Overload
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-[1px] bg-[#D97706]" />
+            Open conflict
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-[1px] bg-[#059669]" />
+            Resolved
+          </span>
+        </div>
+      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        fitView
+        fitViewOptions={{ padding: 0.28 }}
+        onNodeClick={(_evt, node) => onSelectEntity(node.id)}
+      >
+        <Background
+          variant={BackgroundVariant.Dots}
+          color="#D4D4D8"
+          gap={22}
+          size={1}
+        />
+        <Controls
+          position="bottom-right"
+          className="rounded-[2px] border border-[#E5E5E5] bg-white"
+        />
+      </ReactFlow>
     </div>
   );
 }

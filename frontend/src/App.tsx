@@ -3,6 +3,8 @@ import {
   checkBackendHealth,
   createRun,
   fetchAblation,
+  fetchDocuments,
+  fetchHealth,
   resolveConflict,
   signOffRun,
 } from "./api";
@@ -10,14 +12,15 @@ import { AblationView } from "./components/AblationView";
 import { BackendWakeupScreen } from "./components/BackendWakeupScreen";
 import { EcoIntakeScreen } from "./components/EcoIntakeScreen";
 import { ImpactGraph } from "./components/ImpactGraph";
-import { IntakeBar } from "./components/IntakeBar";
+import { IntakeBar, type WorkbenchNavView } from "./components/IntakeBar";
 import { LandingScreen } from "./components/LandingScreen";
-import { ReviewWorkspace } from "./components/ReviewWorkspace";
+import { PlantRecordsView, ReviewWorkspace } from "./components/ReviewWorkspace";
 import type {
   AblationResponse,
   CustomEcoInput,
+  DocumentRecord,
+  HealthResponse,
   RunState,
-  WorkbenchTab,
 } from "./types";
 
 type EntryPhase = "landing" | "exiting" | "entered";
@@ -40,9 +43,12 @@ export default function App() {
   const exitTimerRef = useRef<number | null>(null);
 
   const [runState, setRunState] = useState<RunState | null>(null);
-  const [showIntake, setShowIntake] = useState<boolean>(true);
+  const [navView, setNavView] = useState<WorkbenchNavView>("intake");
   const [ablation, setAblation] = useState<AblationResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<WorkbenchTab>("review");
+  const [healthInfo, setHealthInfo] = useState<HealthResponse | null>(null);
+  const [plantDocuments, setPlantDocuments] = useState<DocumentRecord[]>([]);
+  const [docsLoading, setDocsLoading] = useState<boolean>(false);
+
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [activeDocId, setActiveDocId] = useState<string>("doc1_bom_revB.md");
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -69,6 +75,11 @@ export default function App() {
     });
   }, []);
 
+  const handleReturnToOverview = useCallback(() => {
+    setEntryPhase("landing");
+    window.scrollTo({ top: 0 });
+  }, []);
+
   const executeRun = useCallback(
     async (
       scenarioId: string | null,
@@ -82,8 +93,7 @@ export default function App() {
         const defaults = selectDefaultFinding(nextRun);
         setSelectedFindingId(defaults.findingId);
         setActiveDocId(defaults.docId);
-        setShowIntake(false);
-        setActiveTab("review");
+        setNavView("review");
       } catch (err) {
         setErrorBanner(err instanceof Error ? err.message : "Verification run failed.");
       } finally {
@@ -121,15 +131,26 @@ export default function App() {
   useEffect(() => {
     if (!backendReady) return;
     let cancelled = false;
+    setDocsLoading(true);
     async function bootstrap() {
       try {
-        const ablRes = await fetchAblation();
+        const [ablRes, docsRes, healthRes] = await Promise.all([
+          fetchAblation(),
+          fetchDocuments(),
+          fetchHealth(),
+        ]);
         if (!cancelled) {
           setAblation(ablRes);
+          setPlantDocuments(docsRes.documents);
+          setHealthInfo(healthRes);
         }
       } catch (err) {
         if (!cancelled) {
           setErrorBanner(err instanceof Error ? err.message : "Failed to initialize workbench.");
+        }
+      } finally {
+        if (!cancelled) {
+          setDocsLoading(false);
         }
       }
     }
@@ -211,10 +232,8 @@ export default function App() {
         if (span) setActiveDocId(span.doc_id);
       }
     }
-    setActiveTab("review");
+    setNavView("review");
   };
-
-  const isIntakeActive = showIntake || runState === null;
 
   if (entryPhase !== "entered") {
     return (
@@ -229,60 +248,61 @@ export default function App() {
     return <BackendWakeupScreen revealCard />;
   }
 
-  return (
-    <div className="rg-workspace-enter min-h-screen bg-slate-50 text-slate-900">
-      <IntakeBar
-        onNewChangeRequest={() => {
-          setErrorBanner(null);
-          setShowIntake(true);
-        }}
-        isIntakeActive={isIntakeActive}
-        isRunning={isRunning}
-        runState={runState}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onSignOff={handleSignOff}
-        isSigningOff={isSigningOff}
-        revealChrome
-      />
+  const effectiveView: WorkbenchNavView =
+    runState === null && navView !== "records" ? "intake" : navView;
 
-      {isIntakeActive ? (
+  const documentsForLibrary =
+    runState?.documents && runState.documents.length > 0
+      ? runState.documents
+      : plantDocuments;
+
+  return (
+    <IntakeBar
+      activeView={effectiveView}
+      onSelectView={(view) => {
+        setErrorBanner(null);
+        setNavView(view);
+      }}
+      onReturnToOverview={handleReturnToOverview}
+      isRunning={isRunning}
+      runState={runState}
+      healthInfo={healthInfo}
+      documentCount={documentsForLibrary.length}
+      onSignOff={handleSignOff}
+      isSigningOff={isSigningOff}
+    >
+      {errorBanner && effectiveView !== "intake" && (
+        <div className="border-b border-[#DC2626]/30 bg-[#DC2626]/5 px-6 py-2.5 text-xs text-[#DC2626]">
+          {errorBanner}
+        </div>
+      )}
+
+      {effectiveView === "intake" ? (
         <EcoIntakeScreen
           onSubmitEco={(scenarioId, customEco) => executeRun(scenarioId, customEco)}
           isRunning={isRunning}
           errorBanner={errorBanner}
-          revealCard
         />
-      ) : (
-        <>
-          {errorBanner && (
-            <div className="mx-auto mt-4 max-w-[1600px] px-5">
-              <div className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-800">
-                {errorBanner}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "review" ? (
-            <ReviewWorkspace
-              runState={runState}
-              selectedFindingId={selectedFindingId}
-              onSelectFinding={setSelectedFindingId}
-              activeDocId={activeDocId}
-              onSelectDoc={setActiveDocId}
-              onResolveConflict={handleResolveConflict}
-              resolvingConflictId={resolvingConflictId}
-            />
-          ) : activeTab === "graph" ? (
-            <ImpactGraph
-              runState={runState}
-              onSelectEntity={handleSelectEntityFromGraph}
-            />
-          ) : (
-            <AblationView runState={runState} ablation={ablation} />
-          )}
-        </>
-      )}
-    </div>
+      ) : effectiveView === "records" ? (
+        <PlantRecordsView documents={documentsForLibrary} isLoading={docsLoading} />
+      ) : runState && effectiveView === "review" ? (
+        <ReviewWorkspace
+          runState={runState}
+          selectedFindingId={selectedFindingId}
+          onSelectFinding={setSelectedFindingId}
+          activeDocId={activeDocId}
+          onSelectDoc={setActiveDocId}
+          onResolveConflict={handleResolveConflict}
+          resolvingConflictId={resolvingConflictId}
+        />
+      ) : runState && effectiveView === "graph" ? (
+        <ImpactGraph
+          runState={runState}
+          onSelectEntity={handleSelectEntityFromGraph}
+        />
+      ) : runState ? (
+        <AblationView runState={runState} ablation={ablation} />
+      ) : null}
+    </IntakeBar>
   );
 }
