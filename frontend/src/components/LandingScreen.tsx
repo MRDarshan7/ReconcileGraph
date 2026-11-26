@@ -1683,6 +1683,310 @@ function ShowcasePanelCard({
   );
 }
 
+type TrustCellId =
+  | "sqlite"
+  | "sha256"
+  | "http409"
+  | "pint"
+  | "offline"
+  | "moc";
+
+interface TrustCellItem {
+  id: TrustCellId;
+  title: string;
+  subtitle: string;
+}
+
+const TRUST_CELLS: TrustCellItem[] = [
+  {
+    id: "sqlite",
+    title: "Local-First SQLite WAL",
+    subtitle: "Write-ahead transactional graph & review ledger",
+  },
+  {
+    id: "sha256",
+    title: "SHA-256 Span Provenance",
+    subtitle: "Cryptographic byte-offset anchoring on every claim",
+  },
+  {
+    id: "http409",
+    title: "Fail-Closed HTTP 409 Gate",
+    subtitle: "Hard API block until every conflict is resolved",
+  },
+  {
+    id: "pint",
+    title: "Deterministic Pint Units",
+    subtitle: "Dimensional equivalence enforced across bar, psi & °C",
+  },
+  {
+    id: "offline",
+    title: "Offline & Air-Gapped Ready",
+    subtitle: "Full verification loop runs without external network calls",
+  },
+  {
+    id: "moc",
+    title: "MoC & ISO 9001 Aligned",
+    subtitle: "Immutable exportable audit packet per ECO revision",
+  },
+];
+
+function SculptedTrustEmblem({ id }: { id: TrustCellId }) {
+  switch (id) {
+    case "sqlite":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-sqlite-rim" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="45%" stopColor="#71717A" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-sqlite-body" x1="14" y1="14" x2="50" y2="54" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#27272A" />
+              <stop offset="50%" stopColor="#141417" />
+              <stop offset="100%" stopColor="#09090B" />
+            </linearGradient>
+            <radialGradient id="rg-chrome-sqlite-top" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(26 14) rotate(25) scale(24 10)">
+              <stop offset="0%" stopColor="#52525B" />
+              <stop offset="55%" stopColor="#1F1F23" />
+              <stop offset="100%" stopColor="#09090B" />
+            </radialGradient>
+          </defs>
+          {/* Bottom cylinder */}
+          <path d="M14 38v10c0 4.418 8.059 8 18 8s18-3.582 18-8V38" fill="url(#rg-chrome-sqlite-body)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.2" />
+          <ellipse cx="32" cy="38" rx="18" ry="7.5" fill="url(#rg-chrome-sqlite-body)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.1" />
+          {/* Middle cylinder */}
+          <path d="M14 26v10c0 4.418 8.059 8 18 8s18-3.582 18-8V26" fill="url(#rg-chrome-sqlite-body)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.2" />
+          <ellipse cx="32" cy="26" rx="18" ry="7.5" fill="url(#rg-chrome-sqlite-body)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.1" />
+          {/* Top cylinder */}
+          <path d="M14 16v9c0 4.142 8.059 7.5 18 7.5s18-3.358 18-7.5v-9" fill="url(#rg-chrome-sqlite-body)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.25" />
+          <ellipse cx="32" cy="16" rx="18" ry="7.5" fill="url(#rg-chrome-sqlite-top)" stroke="url(#rg-chrome-sqlite-rim)" strokeWidth="1.35" />
+          <ellipse cx="32" cy="16" rx="11.5" ry="4.2" stroke="#F8FAFC" strokeOpacity="0.22" strokeWidth="0.9" />
+          {/* Specular index pips */}
+          <line x1="20" y1="32.5" x2="25" y2="33.8" stroke="#E2E8F0" strokeOpacity="0.55" strokeWidth="1.2" strokeLinecap="round" />
+          <line x1="20" y1="44.5" x2="25" y2="45.8" stroke="#E2E8F0" strokeOpacity="0.45" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      );
+    case "sha256":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-sha-rim" x1="12" y1="7" x2="52" y2="57" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="48%" stopColor="#71717A" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-sha-left" x1="12" y1="10" x2="32" y2="55" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#3F3F46" />
+              <stop offset="100%" stopColor="#09090B" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-sha-right" x1="32" y1="10" x2="52" y2="55" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#1F1F23" />
+              <stop offset="100%" stopColor="#050506" />
+            </linearGradient>
+          </defs>
+          {/* Left facet */}
+          <path d="M32 7L12 15.5V31.5C12 43.8 20.6 52.8 32 57V7Z" fill="url(#rg-chrome-sha-left)" />
+          {/* Right facet */}
+          <path d="M32 7L52 15.5V31.5C52 43.8 43.4 52.8 32 57V7Z" fill="url(#rg-chrome-sha-right)" />
+          {/* Outer chrome bevel */}
+          <path d="M32 7L52 15.5V31.5C52 43.8 43.4 52.8 32 57C20.6 52.8 12 43.8 12 31.5V15.5L32 7Z" stroke="url(#rg-chrome-sha-rim)" strokeWidth="1.35" />
+          {/* Inner recessed shield */}
+          <path d="M32 13L46 19V31C46 40.2 39.8 47.2 32 50.6C24.2 47.2 18 40.2 18 31V19L32 13Z" stroke="#E2E8F0" strokeOpacity="0.22" strokeWidth="1" />
+          {/* Center ridge & offset markers */}
+          <line x1="32" y1="7.5" x2="32" y2="56.5" stroke="#F8FAFC" strokeOpacity="0.25" strokeWidth="1" />
+          <path d="M25 27.5L30.5 33L39.5 23.5" stroke="#F8FAFC" strokeOpacity="0.88" strokeWidth="1.6" strokeLinecap="square" />
+        </svg>
+      );
+    case "http409":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-lock-rim" x1="14" y1="8" x2="50" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="45%" stopColor="#71717A" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-lock-body" x1="16" y1="27" x2="48" y2="55" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#2E2E34" />
+              <stop offset="45%" stopColor="#16161A" />
+              <stop offset="100%" stopColor="#09090B" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-lock-shackle" x1="21" y1="9" x2="43" y2="28" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.92" />
+              <stop offset="55%" stopColor="#71717A" stopOpacity="0.8" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.9" />
+            </linearGradient>
+          </defs>
+          {/* Heavy machined shackle */}
+          <path d="M21 28V19C21 12.925 25.925 8 32 8C38.075 8 43 12.925 43 19V28" stroke="url(#rg-chrome-lock-shackle)" strokeWidth="4.2" strokeLinecap="square" />
+          <path d="M21 28V19C21 12.925 25.925 8 32 8C38.075 8 43 12.925 43 19V28" stroke="#09090B" strokeWidth="1.4" strokeLinecap="square" />
+          {/* Monolithic chamfered body */}
+          <rect x="15" y="27" width="34" height="27" rx="1.5" fill="url(#rg-chrome-lock-body)" stroke="url(#rg-chrome-lock-rim)" strokeWidth="1.35" />
+          <rect x="18.5" y="30.5" width="27" height="20" rx="0.5" stroke="#E2E8F0" strokeOpacity="0.16" strokeWidth="1" />
+          {/* Top specular edge */}
+          <line x1="16" y1="28" x2="48" y2="28" stroke="#F8FAFC" strokeOpacity="0.32" strokeWidth="1" />
+          {/* Keyhole cylinder */}
+          <circle cx="32" cy="38.5" r="3.4" fill="#09090B" stroke="#E2E8F0" strokeOpacity="0.7" strokeWidth="1.15" />
+          <path d="M30.7 41.5L29.8 47H34.2L33.3 41.5" fill="#09090B" stroke="#E2E8F0" strokeOpacity="0.55" strokeWidth="1" />
+        </svg>
+      );
+    case "pint":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-pint-rim" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="48%" stopColor="#71717A" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <radialGradient id="rg-chrome-pint-well" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(26 24) rotate(45) scale(30)">
+              <stop offset="0%" stopColor="#27272A" />
+              <stop offset="65%" stopColor="#121215" />
+              <stop offset="100%" stopColor="#070709" />
+            </radialGradient>
+          </defs>
+          {/* Outer machined bezel */}
+          <circle cx="32" cy="32" r="23" fill="url(#rg-chrome-pint-well)" stroke="url(#rg-chrome-pint-rim)" strokeWidth="1.5" />
+          {/* Inner calibration ring */}
+          <circle cx="32" cy="32" r="17.5" stroke="#E2E8F0" strokeOpacity="0.22" strokeWidth="1" />
+          {/* Cardinal calibration ticks */}
+          <line x1="32" y1="11.5" x2="32" y2="16" stroke="#F8FAFC" strokeOpacity="0.85" strokeWidth="1.35" />
+          <line x1="32" y1="48" x2="32" y2="52.5" stroke="#71717A" strokeWidth="1.2" />
+          <line x1="11.5" y1="32" x2="16" y2="32" stroke="#A1A1AA" strokeWidth="1.2" />
+          <line x1="48" y1="32" x2="52.5" y2="32" stroke="#A1A1AA" strokeWidth="1.2" />
+          <line x1="17.8" y1="17.8" x2="20.8" y2="20.8" stroke="#71717A" strokeWidth="1.1" />
+          <line x1="43.2" y1="20.8" x2="46.2" y2="17.8" stroke="#E2E8F0" strokeOpacity="0.65" strokeWidth="1.1" />
+          {/* Precision gauge needle */}
+          <line x1="28.5" y1="35.5" x2="43.5" y2="20.5" stroke="#F8FAFC" strokeWidth="1.75" strokeLinecap="square" />
+          <circle cx="32" cy="32" r="4" fill="#18181B" stroke="#F8FAFC" strokeOpacity="0.85" strokeWidth="1.3" />
+          <circle cx="32" cy="32" r="1.3" fill="#F8FAFC" />
+        </svg>
+      );
+    case "offline":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-globe-rim" x1="10" y1="10" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="50%" stopColor="#71717A" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <radialGradient id="rg-chrome-globe-core" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(24 22) rotate(40) scale(34)">
+              <stop offset="0%" stopColor="#323238" />
+              <stop offset="55%" stopColor="#141418" />
+              <stop offset="100%" stopColor="#070709" />
+            </radialGradient>
+          </defs>
+          {/* Outer obsidian sphere */}
+          <circle cx="32" cy="32" r="22.5" fill="url(#rg-chrome-globe-core)" stroke="url(#rg-chrome-globe-rim)" strokeWidth="1.4" />
+          {/* Wireframe meridians */}
+          <ellipse cx="32" cy="32" rx="10.5" ry="22.5" stroke="url(#rg-chrome-globe-rim)" strokeWidth="1.05" />
+          <line x1="32" y1="9.5" x2="32" y2="54.5" stroke="#E2E8F0" strokeOpacity="0.28" strokeWidth="1" />
+          {/* Parallels */}
+          <line x1="10" y1="32" x2="54" y2="32" stroke="#F8FAFC" strokeOpacity="0.45" strokeWidth="1.1" />
+          <path d="M13 21.5C18.5 23.6 25 24.8 32 24.8C39 24.8 45.5 23.6 51 21.5" stroke="#E2E8F0" strokeOpacity="0.32" strokeWidth="1" />
+          <path d="M13 42.5C18.5 40.4 25 39.2 32 39.2C39 39.2 45.5 40.4 51 42.5" stroke="#E2E8F0" strokeOpacity="0.26" strokeWidth="1" />
+          {/* Center air-gap anchor */}
+          <circle cx="32" cy="32" r="2.6" fill="#09090B" stroke="#F8FAFC" strokeOpacity="0.85" strokeWidth="1.2" />
+        </svg>
+      );
+    case "moc":
+      return (
+        <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="rg-chrome-moc-rim" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#F8FAFC" stopOpacity="0.95" />
+              <stop offset="50%" stopColor="#71717A" stopOpacity="0.65" />
+              <stop offset="100%" stopColor="#27272A" stopOpacity="0.95" />
+            </linearGradient>
+            <linearGradient id="rg-chrome-moc-face" x1="14" y1="12" x2="50" y2="52" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stopColor="#2E2E34" />
+              <stop offset="55%" stopColor="#141418" />
+              <stop offset="100%" stopColor="#08080A" />
+            </linearGradient>
+          </defs>
+          {/* Outer machined hexagon */}
+          <polygon
+            points="32,8 52.8,20 52.8,44 32,56 11.2,44 11.2,20"
+            fill="url(#rg-chrome-moc-face)"
+            stroke="url(#rg-chrome-moc-rim)"
+            strokeWidth="1.4"
+          />
+          {/* Inner chamfered hex ring */}
+          <polygon
+            points="32,14 47.6,23 47.6,41 32,50 16.4,41 16.4,23"
+            stroke="#E2E8F0"
+            strokeOpacity="0.22"
+            strokeWidth="1"
+          />
+          {/* Top facet specular hairline */}
+          <polyline points="12.5,20.5 32,9.2 51.5,20.5" stroke="#F8FAFC" strokeOpacity="0.3" strokeWidth="0.9" />
+          {/* Crisp verification mark */}
+          <path d="M23.5 32.5L29.5 38.5L41 26" stroke="#F8FAFC" strokeOpacity="0.92" strokeWidth="1.8" strokeLinecap="square" />
+        </svg>
+      );
+  }
+}
+
+function TrustArchitectureBand({ reducedMotion }: { reducedMotion: boolean }) {
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const inView = useInView(gridRef, { once: true, amount: 0.2 });
+
+  return (
+    <section
+      aria-labelledby="trust-architecture-heading"
+      className="border-t border-white/10 bg-[#060607] px-5 py-28 text-white sm:px-10 md:py-36"
+    >
+      <div className="mx-auto max-w-[1380px]">
+        <h2
+          id="trust-architecture-heading"
+          className="mx-auto max-w-[22ch] text-center text-[clamp(2rem,4.2vw,3.5rem)] font-light leading-[1.12] tracking-[-0.03em] text-white"
+        >
+          Built for safety-critical industrial verification
+        </h2>
+
+        <div
+          ref={gridRef}
+          className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-px border border-white/10 bg-white/[0.08] sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {TRUST_CELLS.map((cell, index) => (
+            <motion.div
+              key={cell.id}
+              initial={reducedMotion ? false : { opacity: 0, y: 16, scale: 0.96 }}
+              animate={
+                reducedMotion || inView
+                  ? { opacity: 1, y: 0, scale: 1 }
+                  : { opacity: 0, y: 16, scale: 0.96 }
+              }
+              transition={{
+                duration: reducedMotion ? 0 : 0.45,
+                delay: reducedMotion ? 0 : index * 0.055,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="group flex flex-col items-center justify-center bg-[#0A0A0B] px-8 py-14 text-center transition-[background-color] duration-150 ease-out hover:bg-[#111114]"
+            >
+              <div className="transition-transform duration-[180ms] ease-out group-hover:scale-[1.04]">
+                <SculptedTrustEmblem id={cell.id} />
+              </div>
+              <h3 className="mt-7 text-sm font-medium tracking-[-0.01em] text-neutral-100">
+                {cell.title}
+              </h3>
+              <p className="mt-1.5 max-w-[28ch] text-xs leading-relaxed text-neutral-400">
+                {cell.subtitle}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+
+        <p className="mt-10 text-center text-xs text-neutral-400 md:text-sm">
+          Zero external API calls required in offline mode · Every claim anchored to SHA-256 source byte offsets
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps) {
   const reducedMotion = usePrefersReducedMotion();
   const [isScrolled, setIsScrolled] = useState<boolean>(false);
@@ -2196,6 +2500,9 @@ export function LandingScreen({ onEnter, isExiting = false }: LandingScreenProps
               </ScrollChapter>
             </div>
           </section>
+
+          {/* 4.5 Band 4.5: Trust & Guardrail Architecture Grid */}
+          <TrustArchitectureBand reducedMotion={reducedMotion} />
 
           {/* 5. Band 5: Monumental Kinetic Closing Band */}
           <section ref={closingRef} className="overflow-hidden bg-white px-5 pt-36 pb-12 text-black sm:px-10 sm:pt-44">
